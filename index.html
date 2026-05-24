@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>음악 수업 라이브러리</title>
+<link href="https://fonts.googleapis.com/css2?family=Jua&family=Nanum+Gothic:wght@400;700&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Nanum Gothic', sans-serif;
+  background: #1a1a18;
+  min-height: 100vh;
+  padding: 40px 24px;
+  display: flex; flex-direction: column; align-items: center;
+}
+header {
+  text-align: center;
+  margin-bottom: 36px;
+}
+header h1 {
+  font-family: 'Jua', sans-serif;
+  font-size: 32px;
+  color: #FFFEF5;
+  font-weight: 400;
+  margin-bottom: 8px;
+}
+header p { font-size: 14px; color: #888780; }
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
+  width: 100%;
+  max-width: 860px;
+}
+
+.lesson-card {
+  background: #FFFEF5;
+  border-radius: 16px;
+  padding: 20px;
+  text-decoration: none;
+  display: flex; flex-direction: column; gap: 8px;
+  transition: transform 0.15s, box-shadow 0.15s;
+  cursor: pointer;
+}
+.lesson-card:hover { transform: translateY(-3px); }
+
+.card-emoji  { font-size: 36px; }
+.card-grade  { font-size: 11px; color: #888780; }
+.card-title  { font-family: 'Jua', sans-serif; font-size: 18px; color: #2C2C2A; font-weight: 400; }
+.card-sub    { font-size: 12px; color: #5F5E5A; line-height: 1.5; }
+
+.card-tag {
+  display: inline-block;
+  font-size: 11px;
+  padding: 3px 9px;
+  border-radius: 20px;
+  background: #FFF3E8;
+  color: #993C1D;
+  margin-top: 4px;
+  align-self: flex-start;
+}
+
+footer {
+  margin-top: 48px;
+  font-size: 12px;
+  color: #444441;
+  text-align: center;
+  line-height: 1.8;
+}
+footer code {
+  background: #2C2C2A;
+  color: #FFFEF5;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>🎵 음악 수업 라이브러리</h1>
+  <p>수업을 클릭하면 슬라이드가 열려요</p>
+</header>
+
+<div class="grid" id="grid">
+  <a class="lesson-card" href="viewer.html?lesson=lessons/01-crescendo.json">
+    <span class="card-emoji">🔊</span>
+    <span class="card-grade">초등 1학년 · 음악</span>
+    <span class="card-title">크레센도와 디크레센도</span>
+    <span class="card-sub">소리의 크기가 변하는 걸 체험해봐요</span>
+    <span class="card-tag">체험형</span>
+  </a>
+
+  <!-- 앞으로 여기에 수업 카드 추가 -->
+  <div class="lesson-card" style="opacity:0.35; cursor:default; border: 2px dashed #DDD; background: transparent;">
+    <span class="card-emoji">🎼</span>
+    <span class="card-grade">초등 1학년 · 음악</span>
+    <span class="card-title">다음 수업</span>
+    <span class="card-sub">새 JSON 파일을 추가하면 여기에 연결하세요</span>
+  </div>
+</div>
+
+<footer>
+  새 수업 추가: <code>lessons/02-새주제.json</code> 생성 후 이 페이지에 카드 추가<br>
+  뷰어 직접 열기: <code>viewer.html?lesson=lessons/파일명.json</code>
+</footer>
+</body>
+</html>

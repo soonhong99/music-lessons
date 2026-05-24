@@ -1,0 +1,105 @@
+{
+  "meta": {
+    "id": "01-crescendo",
+    "title": "크레센도와 디크레센도",
+    "subject": "음악",
+    "grade": "초등 1학년",
+    "color_a": "#E8732A",
+    "color_b": "#2A6BE8",
+    "color_a_light": "#FFF3E8",
+    "color_b_light": "#E8F0FF",
+    "color_a_dark": "#993C1D",
+    "color_b_dark": "#185FA5"
+  },
+  "slides": [
+    {
+      "type": "intro",
+      "emoji": "🎵",
+      "title": "소리가 커지고 작아져요!",
+      "subtitle": "크레센도와 디크레센도를 배워봐요",
+      "concepts": [
+        {
+          "name": "크레센도",
+          "symbol": "crescendo",
+          "description": "소리가 점점 커져요 🔊",
+          "color": "a"
+        },
+        {
+          "name": "디크레센도",
+          "symbol": "decrescendo",
+          "description": "소리가 점점 작아져요 🔉",
+          "color": "b"
+        }
+      ],
+      "analogy": "마치 친구가 멀리서 달려오면 소리가 커지고, 멀리 사라지면 소리가 작아지는 것처럼요! 🏃"
+    },
+    {
+      "type": "experience",
+      "color": "a",
+      "title": "크레센도 체험",
+      "subtitle": "소리가 점점 커지는 걸 들어봐요!",
+      "concept_name": "크레센도",
+      "symbol": "crescendo",
+      "audio": { "start_gain": 0.01, "end_gain": 0.6, "duration": 4, "freq": 440 },
+      "description": "소리가 조금씩 커져서 마지막엔 아주 크게 들려요!\n원들이 점점 커지는 걸 보세요 👀"
+    },
+    {
+      "type": "experience",
+      "color": "b",
+      "title": "디크레센도 체험",
+      "subtitle": "소리가 점점 작아지는 걸 들어봐요!",
+      "concept_name": "디크레센도",
+      "symbol": "decrescendo",
+      "audio": { "start_gain": 0.6, "end_gain": 0.01, "duration": 4, "freq": 440 },
+      "description": "처음엔 크게 들리다가 점점 조용해져요!\n원들이 점점 작아지는 걸 보세요 👀"
+    },
+    {
+      "type": "compare",
+      "title": "둘 다 비교해봐요!",
+      "subtitle": "버튼을 눌러서 차이를 느껴봐요",
+      "items": [
+        {
+          "name": "크레센도",
+          "symbol": "crescendo",
+          "description": "소리가 점점 커져요 📣",
+          "color": "a",
+          "audio": { "start_gain": 0.01, "end_gain": 0.5, "duration": 2.5, "freq": 523 }
+        },
+        {
+          "name": "디크레센도",
+          "symbol": "decrescendo",
+          "description": "소리가 점점 작아져요 🤫",
+          "color": "b",
+          "audio": { "start_gain": 0.5, "end_gain": 0.01, "duration": 2.5, "freq": 523 }
+        }
+      ]
+    },
+    {
+      "type": "quiz",
+      "title": "퀴즈 타임!",
+      "subtitle": "맞춰봐요!",
+      "questions": [
+        {
+          "q": "소리가 점점 커지는 것을 뭐라고 할까요?",
+          "options": ["크레센도", "디크레센도", "포르테"],
+          "answer": 0
+        },
+        {
+          "q": "소리가 점점 작아지는 것을 뭐라고 할까요?",
+          "options": ["크레센도", "피아노", "디크레센도"],
+          "answer": 2
+        },
+        {
+          "q": "멀리서 오던 친구가 가까이 올수록 소리는?",
+          "options": ["똑같아요", "점점 커져요", "점점 작아져요"],
+          "answer": 1
+        },
+        {
+          "q": "< 이 모양처럼 생긴 기호는 무엇을 나타낼까요?",
+          "options": ["디크레센도", "크레센도", "멈춤"],
+          "answer": 1
+        }
+      ]
+    }
+  ]
+}

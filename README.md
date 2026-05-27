@@ -7,7 +7,8 @@ music-lessons/
 ├── index.html               ← 수업 목록 메인 페이지
 ├── lessons/
 │   ├── 01-crescendo.json    ← 크레센도/디크레센도 수업
-│   └── 02-다음수업.json      ← 앞으로 추가할 수업들
+│   ├── 02-accent.json       ← 악센트 수업
+│   └── 03-다음수업.json      ← 앞으로 추가할 수업들
 └── README.md
 ```
 

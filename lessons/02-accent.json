@@ -1,0 +1,106 @@
+{
+  "meta": {
+    "id": "02-accent",
+    "title": "악센트",
+    "subject": "음악",
+    "grade": "초등 1학년",
+    "color_a": "#D83A34",
+    "color_b": "#237A57",
+    "color_a_light": "#FFECEB",
+    "color_b_light": "#E8F6EF",
+    "color_a_dark": "#98201C",
+    "color_b_dark": "#13533A",
+    "result_message": "악센트는 중요한 음을 더 또렷하게 들려주는 표시예요!"
+  },
+  "slides": [
+    {
+      "type": "intro",
+      "emoji": "💥",
+      "title": "악센트는 콕! 강조하는 소리예요",
+      "subtitle": "중요한 음을 더 또렷하게 들려줘요",
+      "concepts": [
+        {
+          "name": "악센트",
+          "symbol": "accent",
+          "description": "이 음은 더 힘 있게! 💥",
+          "color": "a"
+        },
+        {
+          "name": "보통 음",
+          "symbol": "plain",
+          "description": "부드럽게 지나가요 🎵",
+          "color": "b"
+        }
+      ],
+      "analogy": "친구 이름을 부를 때 중요한 말만 또렷하게 말하는 것처럼, 음악도 중요한 음을 콕 집어 들려줘요!"
+    },
+    {
+      "type": "experience",
+      "color": "a",
+      "title": "악센트 체험",
+      "subtitle": "처음 소리가 톡! 하고 더 크게 들려요",
+      "concept_name": "악센트",
+      "symbol": "accent",
+      "audio": { "start_gain": 0.65, "end_gain": 0.12, "duration": 1.2, "freq": 392 },
+      "description": "악센트가 붙은 음은 처음에 더 힘 있게 나와요!\n손뼉도 첫 박만 크게 쳐보세요: 짝! 짝 짝"
+    },
+    {
+      "type": "experience",
+      "color": "b",
+      "title": "보통 음 체험",
+      "subtitle": "모든 소리가 비슷하게 지나가요",
+      "concept_name": "보통 음",
+      "symbol": "plain",
+      "audio": { "start_gain": 0.28, "end_gain": 0.24, "duration": 1.2, "freq": 392 },
+      "description": "보통 음은 특별히 튀어나오지 않아요.\n모두 비슷하게 들리면 어디가 중요한지 덜 잘 보여요."
+    },
+    {
+      "type": "compare",
+      "title": "왜 악센트를 쓸까요?",
+      "subtitle": "중요한 음을 귀로 바로 찾게 해줘요",
+      "items": [
+        {
+          "name": "악센트 있음",
+          "symbol": "accent",
+          "description": "중요한 음이 앞에 나와요 💥",
+          "color": "a",
+          "audio": { "start_gain": 0.65, "end_gain": 0.12, "duration": 1.2, "freq": 440 }
+        },
+        {
+          "name": "악센트 없음",
+          "symbol": "plain",
+          "description": "모든 음이 비슷하게 들려요 🎵",
+          "color": "b",
+          "audio": { "start_gain": 0.28, "end_gain": 0.24, "duration": 1.2, "freq": 440 }
+        }
+      ]
+    },
+    {
+      "type": "quiz",
+      "title": "퀴즈 타임!",
+      "subtitle": "악센트를 찾아봐요!",
+      "questions": [
+        {
+          "q": "악센트가 붙은 음은 어떻게 연주할까요?",
+          "options": ["더 힘 있게", "점점 작게", "아주 느리게"],
+          "answer": 0
+        },
+        {
+          "q": "악센트 기호는 어떤 모양일까요?",
+          "options": ["동그라미", "> 모양", "물결 모양"],
+          "answer": 1
+        },
+        {
+          "q": "음악에서 악센트를 쓰는 까닭은 무엇일까요?",
+          "options": ["중요한 음을 잘 들리게 하려고", "모든 음을 숨기려고", "노래를 멈추려고"],
+          "answer": 0
+        },
+        {
+          "q": "손뼉으로 악센트를 표현하면 어떻게 할 수 있을까요?",
+          "options": ["모두 똑같이 작게", "첫 박만 크게 짝!", "손뼉을 치지 않기"],
+          "answer": 1
+        }
+      ]
+    }
+  ]
+}

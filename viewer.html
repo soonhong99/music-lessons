@@ -598,6 +598,17 @@ function clsOf(c)  { return c === 'a' ? 'ca' : 'cb'; }
 
 /* ── SVG WEDGE ── */
 function wedgeSVG(type, color, w=88, h=28) {
+  if (type === 'accent')
+    return `<svg class="wedge" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+      <polyline points="${w*0.25},${h*0.25} ${w*0.75},${h/2} ${w*0.25},${h*0.75}"
+        fill="none" stroke="${color}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>`;
+  if (type === 'plain')
+    return `<svg class="wedge" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+      <circle cx="${w/2}" cy="${h/2}" r="${Math.min(w,h)*0.22}" fill="${color}"/>
+      <line x1="${w/2 + Math.min(w,h)*0.18}" y1="${h/2}" x2="${w/2 + Math.min(w,h)*0.18}" y2="3"
+        stroke="${color}" stroke-width="2.5" stroke-linecap="round"/>
+    </svg>`;
   if (type === 'crescendo')
     return `<svg class="wedge" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
       <line x1="2" y1="${h/2}" x2="${w-2}" y2="2"    stroke="${color}" stroke-width="2.5" stroke-linecap="round"/>
@@ -930,12 +941,13 @@ function updateResult() {
   const idx = Math.round((score / total) * 4);
   const chars = ['😢','🙂','😊','😄','🌟'];
   const msgs  = ['괜찮아요! 다시 공부해봐요.','조금 더 연습해봐요!','잘했어요!','훌륭해요! 아주 잘했어요!','완벽해요! 음악 천재! 🎵'];
+  const learned = L.meta.result_message || `${L.meta.title}를 배웠어요!`;
   const r = document.getElementById('res-char');
   const s = document.getElementById('res-score');
   const m = document.getElementById('res-msg');
   if (r) r.textContent = chars[idx];
   if (s) s.textContent = `${score} / ${total} 점`;
-  if (m) m.textContent = msgs[idx] + '\n크레센도와 디크레센도를 배웠어요!';
+  if (m) m.textContent = msgs[idx] + '\n' + learned;
 }
 
 function restart() {

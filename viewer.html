@@ -486,6 +486,109 @@ svg.wedge { display: block; }
   user-select: none;
 }
 #fs-hint:hover { color: var(--text-mid); }
+
+/* ── TIMELINE ── */
+.timeline-scroll {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 4px;
+}
+.timeline-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: max-content;
+  padding: 4px 8px;
+}
+.era-pill {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 7px 10px 6px;
+  border-radius: 12px;
+  background: #F5F5F0;
+  border: 1.5px solid #E0E0DA;
+  flex-shrink: 0;
+  min-width: 66px;
+  transition: transform 0.2s;
+}
+.era-pill.hl {
+  background: var(--ca-light);
+  border-color: var(--ca);
+  transform: scale(1.1);
+  animation: pulseEra 1.6s ease-in-out infinite;
+}
+@keyframes pulseEra {
+  0%,100% { box-shadow: 0 0 0 0 rgba(200,134,10,.35); }
+  50%      { box-shadow: 0 0 0 8px rgba(200,134,10,0); }
+}
+.era-emoji { font-size: 20px; line-height: 1; }
+.era-name  { font-family: 'Jua', sans-serif; font-size: 11px; color: var(--text); text-align: center; }
+.era-year  { font-size: 9px; color: #BBB; text-align: center; }
+.era-extra { font-size: 9px; color: #AAA; text-align: center; display: none; }
+.era-pill.hl .era-name  { color: var(--ca-dark); font-size: 12px; }
+.era-pill.hl .era-year  { color: var(--ca); }
+.era-pill.hl .era-extra { display: block; color: var(--ca-dark); font-weight: bold; }
+.era-arrow { color: #CCC; font-size: 16px; flex-shrink: 0; user-select: none; }
+
+/* ── FEATURES ── */
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  width: 100%;
+  max-width: 580px;
+  margin-bottom: 10px;
+}
+.feature-card {
+  border-radius: 14px;
+  padding: 14px 8px 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  background: var(--ca-light);
+  border: 1.5px solid var(--ca-border);
+}
+.feature-emoji { font-size: 26px; line-height: 1; }
+.feature-title { font-family: 'Jua', sans-serif; font-size: 13px; color: var(--ca-dark); text-align: center; }
+.feature-desc  { font-size: 11px; color: var(--text-mid); text-align: center; line-height: 1.5; white-space: pre-line; }
+
+/* ── COMPOSER ── */
+.composer-card {
+  display: flex;
+  gap: 12px;
+  border-radius: 14px;
+  padding: 10px 14px;
+  width: 100%;
+  max-width: 520px;
+  margin-bottom: 8px;
+  align-items: flex-start;
+}
+.composer-card.ca { background: var(--ca-light); border: 1.5px solid var(--ca-border); }
+.composer-card.cb { background: var(--cb-light); border: 1.5px solid var(--cb-border); }
+.composer-avatar { font-size: 36px; flex-shrink: 0; line-height: 1; padding-top: 2px; }
+.composer-info   { display: flex; flex-direction: column; gap: 3px; }
+.composer-name   { font-family: 'Jua', sans-serif; font-size: 15px; }
+.composer-card.ca .composer-name { color: var(--ca-dark); }
+.composer-card.cb .composer-name { color: var(--cb-dark); }
+.composer-sub    { font-size: 10px; color: var(--text-mid); }
+.composer-nick   {
+  display: inline-block; font-size: 10px; padding: 2px 7px;
+  border-radius: 8px; background: white; font-family: 'Jua', sans-serif; align-self: flex-start;
+}
+.composer-card.ca .composer-nick { color: var(--ca-dark); }
+.composer-card.cb .composer-nick { color: var(--cb-dark); }
+.composer-fact   { font-size: 11px; color: var(--text); line-height: 1.45; white-space: pre-line; margin-top: 1px; }
+.composer-work   { font-size: 10px; color: var(--text-mid); margin-top: 2px; }
+
+/* ── YOUTUBE ── */
+.yt-wrap  { width: 100%; max-width: 480px; }
+.yt-title { font-family: 'Jua', sans-serif; font-size: 12px; color: var(--text-mid); margin-bottom: 5px; }
+.yt-frame { width: 100%; height: 192px; border-radius: 12px; border: 0; display: block; background: #000; }
+.yt-desc  { font-size: 11px; color: var(--text-mid); margin-top: 5px; text-align: center; line-height: 1.5; }
 </style>
 </head>
 <body>
@@ -760,6 +863,82 @@ function buildResult(meta, questions) {
   return el;
 }
 
+/* ── TIMELINE BUILDER ── */
+function buildTimeline(s, meta) {
+  const el = document.createElement('div');
+  el.className = 'slide';
+  const pillsHTML = s.eras.map((era, i) => `
+    ${i > 0 ? '<span class="era-arrow">›</span>' : ''}
+    <div class="era-pill${era.highlight ? ' hl' : ''}">
+      <span class="era-emoji">${era.emoji}</span>
+      <span class="era-name">${era.name}</span>
+      <span class="era-year">${era.years}</span>
+      ${era.desc ? `<span class="era-extra">${era.desc}</span>` : ''}
+    </div>
+  `).join('');
+  el.innerHTML = `
+    <h1 class="slide-title">${s.title}</h1>
+    <p class="slide-subtitle">${s.subtitle}</p>
+    <div class="timeline-scroll"><div class="timeline-row">${pillsHTML}</div></div>
+    ${s.highlight_text ? `<div class="analogy-box" style="margin-top:14px;">${s.highlight_text}</div>` : ''}
+  `;
+  return el;
+}
+
+/* ── FEATURES BUILDER ── */
+function buildFeatures(s, meta) {
+  const el = document.createElement('div');
+  el.className = 'slide';
+  el.innerHTML = `
+    <h1 class="slide-title">${s.title}</h1>
+    <p class="slide-subtitle">${s.subtitle}</p>
+    <div class="features-grid">
+      ${s.items.map(item => `
+        <div class="feature-card">
+          <span class="feature-emoji">${item.emoji}</span>
+          <div class="feature-title">${item.title}</div>
+          <div class="feature-desc">${item.desc}</div>
+        </div>
+      `).join('')}
+    </div>
+    ${s.note ? `<div class="analogy-box">${s.note}</div>` : ''}
+  `;
+  return el;
+}
+
+/* ── COMPOSER BUILDER ── */
+function buildComposer(s, meta) {
+  const cl = clsOf(s.color);
+  const yt = s.youtube;
+  const el = document.createElement('div');
+  el.className = 'slide';
+  el.innerHTML = `
+    <h1 class="slide-title" style="font-size:clamp(16px,2.4vw,22px);">🎼 ${s.name}</h1>
+    <p class="slide-subtitle">${s.years} · ${s.nationality}</p>
+    <div class="composer-card ${cl}">
+      <span class="composer-avatar">${s.emoji}</span>
+      <div class="composer-info">
+        <div class="composer-name">${s.name}</div>
+        <div class="composer-sub">${s.english_name}</div>
+        <span class="composer-nick">✨ ${s.nickname}</span>
+        <div class="composer-fact">${s.fun_fact}</div>
+        <div class="composer-work">🎵 대표작: ${s.famous_work}</div>
+      </div>
+    </div>
+    ${yt ? `
+      <div class="yt-wrap">
+        <div class="yt-title">🎧 ${yt.title}</div>
+        <iframe class="yt-frame"
+          src="https://www.youtube-nocookie.com/embed/${yt.video_id}?rel=0&modestbranding=1"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowfullscreen></iframe>
+        <div class="yt-desc">${yt.desc}</div>
+      </div>
+    ` : ''}
+  `;
+  return el;
+}
+
 /* ── QUIZ LOGIC ── */
 function renderQuestion(slideId) {
   const el = slideEls.find(e => e._slideId === slideId);
@@ -971,6 +1150,8 @@ function loadLesson(data) {
   document.documentElement.style.setProperty('--cb-light', meta.color_b_light);
   document.documentElement.style.setProperty('--ca-dark',  meta.color_a_dark);
   document.documentElement.style.setProperty('--cb-dark',  meta.color_b_dark);
+  if (meta.color_a_border) document.documentElement.style.setProperty('--ca-border', meta.color_a_border);
+  if (meta.color_b_border) document.documentElement.style.setProperty('--cb-border', meta.color_b_border);
 
   // stash concepts for result slide
   const introSlide = L.slides.find(s => s.type === 'intro');
@@ -991,6 +1172,9 @@ function loadLesson(data) {
     else if (s.type === 'experience') el = buildExperience(s, meta, sid);
     else if (s.type === 'compare')    el = buildCompare(s, meta, sid);
     else if (s.type === 'quiz')       el = buildQuiz(s, meta, sid);
+    else if (s.type === 'timeline')   el = buildTimeline(s, meta);
+    else if (s.type === 'features')   el = buildFeatures(s, meta);
+    else if (s.type === 'composer')   el = buildComposer(s, meta);
     else return;
     el.id = sid;
     wrap.appendChild(el);

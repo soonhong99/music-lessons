@@ -1,0 +1,155 @@
+{
+  "meta": {
+    "id": "03-baroque",
+    "title": "바로크 음악을 만나요!",
+    "subject": "음악",
+    "grade": "초등 1학년",
+    "color_a": "#C8860A",
+    "color_b": "#7A3FA0",
+    "color_a_light": "#FFF8E7",
+    "color_b_light": "#F5EEFF",
+    "color_a_dark": "#7A5200",
+    "color_b_dark": "#4A1A72",
+    "color_a_border": "#F0D080",
+    "color_b_border": "#C9A8E0",
+    "result_message": "바로크 음악은 화려하고 웅장한 클래식 음악의 시작이에요!"
+  },
+  "slides": [
+    {
+      "type": "intro",
+      "emoji": "👑",
+      "title": "바로크 음악을 만나요!",
+      "subtitle": "클래식 음악이 처음 시작된 특별한 시대예요",
+      "concepts": [
+        {
+          "name": "바로크",
+          "symbol": "crescendo",
+          "description": "화려하고 웅장한 음악 👑",
+          "color": "a"
+        },
+        {
+          "name": "1600~1750",
+          "symbol": "decrescendo",
+          "description": "지금으로부터 약 400년 전 🕰️",
+          "color": "b"
+        }
+      ],
+      "analogy": "바로크는 '울퉁불퉁한 진주'라는 뜻이에요. 복잡하고 화려한 장식이 잔뜩 붙어 있어서 붙여진 이름이에요! 💎"
+    },
+    {
+      "type": "timeline",
+      "title": "음악의 역사 여행",
+      "subtitle": "클래식 음악은 아주 오래전부터 시작됐어요",
+      "eras": [
+        { "name": "중세", "years": "~1400", "emoji": "🏰", "highlight": false, "desc": "성당 음악" },
+        { "name": "르네상스", "years": "1400~1600", "emoji": "🎨", "highlight": false, "desc": "예술의 꽃" },
+        { "name": "바로크", "years": "1600~1750", "emoji": "👑", "highlight": true, "desc": "오늘 배울 시대!" },
+        { "name": "고전주의", "years": "1750~1820", "emoji": "🎼", "highlight": false, "desc": "모차르트" },
+        { "name": "낭만주의", "years": "1820~1900", "emoji": "💖", "highlight": false, "desc": "쇼팽·베토벤" },
+        { "name": "현대", "years": "1900~", "emoji": "🎸", "highlight": false, "desc": "다양한 음악" }
+      ],
+      "highlight_text": "👑 바로크 시대는 클래식 음악의 기초를 만든 가장 중요한 시대예요!"
+    },
+    {
+      "type": "features",
+      "title": "바로크 음악의 특징",
+      "subtitle": "이런 점이 다른 음악과 달라요!",
+      "items": [
+        {
+          "emoji": "🎭",
+          "title": "화려한 장식",
+          "desc": "음표를 예쁘게 꾸며요\n케이크 위 크림처럼!"
+        },
+        {
+          "emoji": "🎹",
+          "title": "하프시코드",
+          "desc": "피아노 할아버지!\n줄을 뜯어 소리 내요"
+        },
+        {
+          "emoji": "🎼",
+          "title": "여러 선율 함께",
+          "desc": "두 멜로디가 동시에!\n친구와 함께 노래해요"
+        }
+      ],
+      "note": "🎻 바이올린도 이 시대에 아주 중요한 악기였어요!"
+    },
+    {
+      "type": "composer",
+      "emoji": "🎹",
+      "name": "요한 세바스티안 바흐",
+      "english_name": "Johann Sebastian Bach",
+      "years": "1685 ~ 1750",
+      "nationality": "🇩🇪 독일",
+      "nickname": "음악의 아버지",
+      "fun_fact": "자녀가 무려 20명이나 있었어요!\n쉬지 않고 곡을 만들었던 이유래요 😄",
+      "famous_work": "G선상의 아리아, 토카타와 푸가",
+      "color": "a",
+      "youtube": {
+        "video_id": "ipzR9bhei_o",
+        "title": "바흐 — 토카타와 푸가 d단조 (악보 그래프로 보기)",
+        "desc": "음표가 막대로 움직여요! 소리와 함께 보면 더 재미있어요 🎵"
+      }
+    },
+    {
+      "type": "composer",
+      "emoji": "🎻",
+      "name": "안토니오 비발디",
+      "english_name": "Antonio Vivaldi",
+      "years": "1678 ~ 1741",
+      "nationality": "🇮🇹 이탈리아",
+      "nickname": "빨간 머리 신부님",
+      "fun_fact": "빨간 머리를 가진 신부님이었어요!\n고아원 아이들에게 바이올린을 가르쳤대요 🎻",
+      "famous_work": "사계 (봄·여름·가을·겨울)",
+      "color": "b",
+      "youtube": {
+        "video_id": "e3nSvIiBNFo",
+        "title": "비발디 — 사계 '봄' 1악장",
+        "desc": "봄날 새소리와 시냇물 소리를 바이올린으로 표현했어요 🌸"
+      }
+    },
+    {
+      "type": "composer",
+      "emoji": "🎺",
+      "name": "게오르크 프리드리히 헨델",
+      "english_name": "George Frideric Handel",
+      "years": "1685 ~ 1759",
+      "nationality": "🇩🇪 독일 → 🇬🇧 영국",
+      "nickname": "왕의 음악가",
+      "fun_fact": "강 위의 배에서 처음 연주했어요!\n왕이 너무 좋아서 세 번이나 더 듣고 싶다고 했대요 👑",
+      "famous_work": "수상 음악, 메시아 '할렐루야'",
+      "color": "a",
+      "youtube": {
+        "video_id": "HfgVsUqmAN8",
+        "title": "헨델 — 수상 음악 (Water Music)",
+        "desc": "영국 왕 조지 1세를 위해 강 위의 배에서 연주한 음악이에요 🚢"
+      }
+    },
+    {
+      "type": "quiz",
+      "title": "퀴즈 타임!",
+      "subtitle": "바로크 음악을 얼마나 알게 됐나요?",
+      "questions": [
+        {
+          "q": "바로크 시대는 언제일까요?",
+          "options": ["1600~1750년", "1900~2000년", "500~1000년"],
+          "answer": 0
+        },
+        {
+          "q": "'사계'를 만든 작곡가는 누구일까요?",
+          "options": ["바흐", "헨델", "비발디"],
+          "answer": 2
+        },
+        {
+          "q": "바로크 음악에서 많이 쓰인 피아노의 할아버지 악기는?",
+          "options": ["드럼", "하프시코드", "기타"],
+          "answer": 1
+        },
+        {
+          "q": "'음악의 아버지'라고 불리는 바로크 작곡가는?",
+          "options": ["비발디", "헨델", "바흐"],
+          "answer": 2
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,185 @@
+{
+  "meta": {
+    "id": "04-classical",
+    "title": "고전주의 음악을 만나요!",
+    "subject": "음악",
+    "grade": "초등 1학년",
+    "color_a": "#2458A2",
+    "color_b": "#B86B0A",
+    "color_a_light": "#E8F0FF",
+    "color_b_light": "#FFF4E0",
+    "color_a_dark": "#12316A",
+    "color_b_dark": "#7A4200",
+    "color_a_border": "#A8C4F4",
+    "color_b_border": "#F0C870",
+    "result_message": "고전주의 음악은 아름다운 피아노와 기억하기 쉬운 멜로디로 가득 차 있어요!"
+  },
+  "slides": [
+    {
+      "type": "review",
+      "title": "🔙 지난 시간에 배웠어요!",
+      "subtitle": "바로크 시대를 기억하나요? 함께 복습해봐요",
+      "era": "바로크 시대 (1600~1750)",
+      "era_emoji": "👑",
+      "points": [
+        { "emoji": "🎭", "text": "음표에 화려한 장식음이 잔뜩 붙어 있어요" },
+        { "emoji": "🎹", "text": "피아노 할아버지인 하프시코드를 썼어요" },
+        { "emoji": "🎼", "text": "여러 선율이 동시에 대화하듯 울려요" }
+      ],
+      "composers": [
+        { "emoji": "🎹", "name": "바흐" },
+        { "emoji": "🎻", "name": "비발디" },
+        { "emoji": "🎺", "name": "헨델" }
+      ],
+      "next_text": "이제 다음 시대로 출발해요! →"
+    },
+    {
+      "type": "intro",
+      "emoji": "🏛️",
+      "title": "고전주의 음악을 만나요!",
+      "subtitle": "피아노가 탄생하고, 멜로디가 더 아름다워졌어요",
+      "concepts": [
+        {
+          "name": "고전주의",
+          "symbol": "crescendo",
+          "description": "깔끔하고 균형잡힌 음악 🏛️",
+          "color": "a"
+        },
+        {
+          "name": "1750~1820",
+          "symbol": "decrescendo",
+          "description": "바로크 다음에 찾아온 시대 🎹",
+          "color": "b"
+        }
+      ],
+      "analogy": "'고전'이란 말은 오래되었지만 훌륭하다는 뜻이에요. 이 시대에 피아노가 태어나고, 누구나 기억할 수 있는 아름다운 멜로디들이 만들어졌어요! 🌟"
+    },
+    {
+      "type": "timeline",
+      "title": "음악의 역사 여행",
+      "subtitle": "우리는 지금 바로크 다음 시대를 배우고 있어요",
+      "eras": [
+        { "name": "중세", "years": "~1400", "emoji": "🏰", "highlight": false, "desc": "성당 음악" },
+        { "name": "르네상스", "years": "1400~1600", "emoji": "🎨", "highlight": false, "desc": "예술의 꽃" },
+        { "name": "바로크", "years": "1600~1750", "emoji": "👑", "highlight": false, "desc": "지난 시간!" },
+        { "name": "고전주의", "years": "1750~1820", "emoji": "🏛️", "highlight": true, "desc": "오늘 배울 시대!" },
+        { "name": "낭만주의", "years": "1820~1900", "emoji": "💖", "highlight": false, "desc": "쇼팽·베토벤" },
+        { "name": "현대", "years": "1900~", "emoji": "🎸", "highlight": false, "desc": "다양한 음악" }
+      ],
+      "highlight_text": "🏛️ 고전주의 시대 — 피아노가 태어나고 교향곡이 완성된 시대예요!"
+    },
+    {
+      "type": "features",
+      "title": "고전주의 음악의 특징",
+      "subtitle": "바로크와 이런 점이 달라졌어요!",
+      "items": [
+        {
+          "emoji": "🎹",
+          "title": "드디어 피아노가 생겼어요!",
+          "desc": "바로크 시대엔 하프시코드를 썼어요. 그런데 고전주의 시대에 피아노가 발명됐어요! 건반을 세게 누르면 크게, 살짝 누르면 작게 소리나요. 크레센도도 피아노로 자유롭게 표현할 수 있게 됐어요! 🎹"
+        },
+        {
+          "emoji": "🏛️",
+          "title": "기억하기 쉬운 멜로디",
+          "desc": "바로크 음악은 장식음이 많아서 복잡했어요. 고전주의 음악은 멜로디가 더 단순하고 또렷해요. 한 번 들으면 금방 따라 흥얼거릴 수 있어요. 지금도 사람들이 즐겨 부르는 이유예요! 🎶"
+        },
+        {
+          "emoji": "🎻",
+          "title": "교향곡이 탄생했어요!",
+          "desc": "현악기, 관악기, 타악기가 모두 함께 연주하는 '교향곡'이 이 시대에 완성됐어요. 수십 명의 연주자가 한 무대에서 함께하는 대규모 오케스트라의 시대가 열렸어요! 🎼"
+        }
+      ],
+      "note": "🎵 바로크의 복잡함 → 고전주의의 명쾌함! 음악이 더 친근해졌어요"
+    },
+    {
+      "type": "composer",
+      "emoji": "🌟",
+      "name": "볼프강 아마데우스 모차르트",
+      "english_name": "Wolfgang Amadeus Mozart",
+      "years": "1756 ~ 1791",
+      "nationality": "🇦🇹 오스트리아",
+      "nickname": "음악의 신동",
+      "fun_fact": "5살 때 이미 곡을 만들었어요!\n35살까지만 살았지만 무려 600곡이 넘는 음악을 만들었대요 🌟",
+      "famous_work": "터키 행진곡, 마술피리, 아이네 클라이네 나흐트무지크",
+      "color": "a",
+      "youtube": {
+        "video_id": "aeEmGvm7kDk",
+        "title": "모차르트 — 터키 행진곡 (Rondo alla Turca)",
+        "tips": [
+          "군인들이 행진하는 것처럼 경쾌하고 씩씩한 소리를 느껴봐요!",
+          "같은 멜로디가 반복되다가 조금씩 달라지는 부분을 찾아봐요",
+          "피아노 소리가 하프시코드보다 더 풍부하고 깊지 않나요? 🎹"
+        ]
+      }
+    },
+    {
+      "type": "composer",
+      "emoji": "😲",
+      "name": "프란츠 요제프 하이든",
+      "english_name": "Franz Joseph Haydn",
+      "years": "1732 ~ 1809",
+      "nationality": "🇦🇹 오스트리아",
+      "nickname": "교향곡의 아버지",
+      "fun_fact": "졸고 있는 청중을 깨우려고\n갑자기 쾅! 하는 소리를 곡 중간에 넣었대요 😄",
+      "famous_work": "놀람 교향곡, 현악 4중주",
+      "color": "b",
+      "youtube": {
+        "video_id": "VOLy6JxEDLw",
+        "title": "하이든 — 놀람 교향곡 2악장 (Surprise Symphony)",
+        "tips": [
+          "처음엔 아주 조용하고 살살 흘러가요. 긴장하며 들어봐요!",
+          "갑자기 쾅! 하는 순간을 기다려봐요 😲 언제 나올지 모르니 집중!",
+          "깜짝 소리 이후에도 아까 그 멜로디가 계속 이어져요"
+        ]
+      }
+    },
+    {
+      "type": "composer",
+      "emoji": "🦁",
+      "name": "루트비히 판 베토벤",
+      "english_name": "Ludwig van Beethoven",
+      "years": "1770 ~ 1827",
+      "nationality": "🇩🇪 독일",
+      "nickname": "음악의 거인",
+      "fun_fact": "귀가 점점 안 들리게 됐어요!\n그래도 피아노 다리에 막대기를 물어 진동으로 음악을 느끼며 끝까지 만들었대요 🦁",
+      "famous_work": "엘리제를 위하여, 운명 교향곡, 월광 소나타",
+      "color": "a",
+      "youtube": {
+        "video_id": "OujF1ZMbCDQ",
+        "title": "베토벤 — 엘리제를 위하여 (Für Elise)",
+        "tips": [
+          "처음에 나오는 달콤한 피아노 멜로디를 마음속에 기억해봐요",
+          "부드러운 부분과 갑자기 강해지는 부분을 느껴봐요",
+          "귀가 안 들리는 베토벤이 이 아름다운 곡을 만들었어요 🌟"
+        ]
+      }
+    },
+    {
+      "type": "quiz",
+      "title": "퀴즈 타임!",
+      "subtitle": "고전주의 음악을 얼마나 알게 됐나요?",
+      "questions": [
+        {
+          "q": "고전주의 시대에 새로 생긴 악기는 무엇일까요?",
+          "options": ["하프시코드", "피아노", "드럼"],
+          "answer": 1
+        },
+        {
+          "q": "'터키 행진곡'을 만든 작곡가는 누구일까요?",
+          "options": ["하이든", "베토벤", "모차르트"],
+          "answer": 2
+        },
+        {
+          "q": "하이든이 졸고 있는 청중을 깨우려고 만든 교향곡 이름은?",
+          "options": ["놀람 교향곡", "운명 교향곡", "봄 교향곡"],
+          "answer": 0
+        },
+        {
+          "q": "'엘리제를 위하여'를 만든 작곡가는 누구일까요?",
+          "options": ["모차르트", "하이든", "베토벤"],
+          "answer": 2
+        }
+      ]
+    }
+  ]
+}

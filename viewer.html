@@ -587,8 +587,61 @@ svg.wedge { display: block; }
 /* ── YOUTUBE ── */
 .yt-wrap  { width: 100%; max-width: 480px; }
 .yt-title { font-family: 'Jua', sans-serif; font-size: 12px; color: var(--text-mid); margin-bottom: 5px; }
-.yt-frame { width: 100%; height: 172px; border-radius: 12px; border: 0; display: block; background: #000; }
+.yt-frame-wrap { width: 100%; display: flex; justify-content: center; }
+.yt-frame {
+  aspect-ratio: 16/9;
+  max-height: 140px;
+  width: auto;
+  max-width: 100%;
+  margin: 0 auto;
+  border-radius: 12px;
+  border: 0;
+  display: block;
+  background: #000;
+}
 .yt-desc  { font-size: 11px; color: var(--text-mid); margin-top: 5px; text-align: center; line-height: 1.5; }
+
+/* ── PIECE STORY ── */
+.piece-story-box {
+  width: 100%;
+  background: #FFF8F0;
+  border: 1px solid #F0DEC8;
+  border-radius: 10px;
+  padding: 7px 12px 8px;
+  margin-bottom: 5px;
+}
+.piece-story-label {
+  font-family: 'Jua', sans-serif;
+  font-size: 11px;
+  color: #8B5E30;
+  margin-bottom: 3px;
+}
+.piece-story-text {
+  font-size: 11px;
+  color: var(--text);
+  line-height: 1.55;
+  white-space: pre-line;
+}
+
+/* ── YOUTUBE LINK ── */
+.yt-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: 'Jua', sans-serif;
+  font-size: 12px;
+  color: #CC0000;
+  text-decoration: none;
+  padding: 4px 12px;
+  border-radius: 16px;
+  border: 1px solid #FFAAAA;
+  background: #FFF5F5;
+  margin-top: 6px;
+  transition: background 0.15s, transform 0.1s;
+  flex-shrink: 0;
+}
+.yt-link:hover  { background: #FFE5E5; }
+.yt-link:active { transform: scale(0.97); }
 
 /* ── REVIEW (이전 수업 복습) ── */
 .review-era-badge {
@@ -1041,16 +1094,27 @@ function buildComposer(s, meta) {
     ${yt ? `
       <div class="yt-wrap">
         <div class="yt-title">🎧 ${yt.title}</div>
+        ${yt.piece_story ? `
+          <div class="piece-story-box">
+            <div class="piece-story-label">🎬 이 곡의 이야기</div>
+            <div class="piece-story-text">${yt.piece_story}</div>
+          </div>
+        ` : ''}
         ${yt.tips && yt.tips.length ? `
           <div class="listen-box">
             <div class="listen-label">👂 이렇게 들어봐요!</div>
             ${yt.tips.map(t => `<div class="listen-item">• ${t}</div>`).join('')}
           </div>
         ` : ''}
-        <iframe class="yt-frame"
-          src="https://www.youtube-nocookie.com/embed/${yt.video_id}?rel=0&modestbranding=1"
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-          allowfullscreen></iframe>
+        <div class="yt-frame-wrap">
+          <iframe class="yt-frame"
+            src="https://www.youtube-nocookie.com/embed/${yt.video_id}?rel=0&modestbranding=1"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowfullscreen></iframe>
+        </div>
+        <a class="yt-link" href="https://www.youtube.com/watch?v=${yt.video_id}" target="_blank" rel="noopener noreferrer">
+          ▶ YouTube에서 더 크게 보기
+        </a>
       </div>
     ` : ''}
   `;

@@ -1,0 +1,118 @@
+{
+  "meta": {
+    "id": "07-tempo",
+    "title": "빠르기말을 배워요!",
+    "subject": "음악",
+    "grade": "초등 1학년",
+    "color_a": "#B82050",
+    "color_b": "#1E5FAA",
+    "color_a_light": "#FFE8EF",
+    "color_b_light": "#E8F0FF",
+    "color_a_dark": "#7A0830",
+    "color_b_dark": "#0D3070",
+    "color_a_border": "#F5A0B8",
+    "color_b_border": "#90B8F5",
+    "result_message": "빠르기말을 알면 악보를 펼치는 순간 음악의 느낌을 미리 알 수 있어요!"
+  },
+  "slides": [
+    {
+      "type": "intro",
+      "emoji": "⏱️",
+      "title": "빠르기말을 배워요!",
+      "subtitle": "악보엔 음표 말고도 중요한 단어가 숨어있어요",
+      "concepts": [
+        {
+          "name": "이탈리아어예요",
+          "symbol": "plain",
+          "description": "Adagio, Andante, Allegro... 옛날 음악가들이 이탈리아 사람이 많아서 이탈리아 말로 썼어요 🇮🇹",
+          "color": "a"
+        },
+        {
+          "name": "악보 맨 앞에 있어요",
+          "symbol": "crescendo",
+          "description": "오선지 첫 줄 위 왼쪽에 써있어요. 악보를 펼치면 제일 먼저 보여요 🎼",
+          "color": "b"
+        }
+      ],
+      "analogy": "빠르기말은 음악의 속도 안내판이에요! 연주자들은 이 단어 하나만 보고도 얼마나 빠르게 연주해야 할지 바로 알아요. 오늘 세 가지 빠르기말을 배워봐요 ⏱️"
+    },
+    {
+      "type": "tempo",
+      "term": "Adagio",
+      "korean": "아주 천천히",
+      "emoji": "🐢",
+      "analogy": "거북이처럼, 여유롭고 느리게",
+      "speed": 15,
+      "color": "a",
+      "youtube": {
+        "video_id": "xBU4KYF0VXg",
+        "title": "알비노니 — 아다지오 G단조 (Adagio in G minor)",
+        "tips": [
+          "음이 아주 천천히, 길게 길게 이어져요. 서두르지 말고 느리게 흘러가는 소리를 느껴봐요 🐢",
+          "악보에 Adagio라고 써있으면 이렇게 여유롭게 연주해야 해요!"
+        ]
+      }
+    },
+    {
+      "type": "tempo",
+      "term": "Andante",
+      "korean": "걷는 빠르기로",
+      "emoji": "🚶",
+      "analogy": "학교 가는 길을 걷듯이, 자연스럽게",
+      "speed": 45,
+      "color": "b",
+      "youtube": {
+        "video_id": "o1FSGsZv10M",
+        "title": "모차르트 — 아이네 클라이네 나흐트무지크 2악장 (Andante)",
+        "tips": [
+          "사람이 걷는 속도예요. 너무 빠르지도, 너무 느리지도 않아요 🚶",
+          "악보에 Andante라고 써있으면 '아, 걷는 빠르기구나!' 하고 생각하면 돼요"
+        ]
+      }
+    },
+    {
+      "type": "tempo",
+      "term": "Allegro",
+      "korean": "빠르고 활기차게",
+      "emoji": "🐇",
+      "analogy": "토끼처럼 신나게 달리듯, 가볍고 빠르게",
+      "speed": 82,
+      "color": "a",
+      "youtube": {
+        "video_id": "IBVk7CJgb7U",
+        "title": "모차르트 — 교향곡 40번 1악장 (Allegro molto)",
+        "tips": [
+          "처음부터 빠르고 힘차게 달려나가는 느낌이에요! 발이 절로 움직이지 않나요? 🐇",
+          "악보에 Allegro가 써있으면 신나고 활기차게 빠르게 연주하는 거예요"
+        ]
+      }
+    },
+    {
+      "type": "quiz",
+      "title": "퀴즈 타임!",
+      "subtitle": "빠르기말, 얼마나 외웠나요?",
+      "questions": [
+        {
+          "q": "빠르기말은 악보의 어디에 써있을까요?",
+          "options": ["악보 맨 끝에", "오선지 첫 줄 위 왼쪽 맨 앞", "음표 아래"],
+          "answer": 1
+        },
+        {
+          "q": "'아주 천천히'를 뜻하는 빠르기말은 무엇일까요?",
+          "options": ["Allegro", "Andante", "Adagio"],
+          "answer": 2
+        },
+        {
+          "q": "'걷는 빠르기로'를 뜻하는 빠르기말은 무엇일까요?",
+          "options": ["Andante", "Adagio", "Allegro"],
+          "answer": 0
+        },
+        {
+          "q": "'빠르고 활기차게'를 뜻하는 빠르기말은 무엇일까요?",
+          "options": ["Adagio", "Allegro", "Andante"],
+          "answer": 1
+        }
+      ]
+    }
+  ]
+}

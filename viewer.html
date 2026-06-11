@@ -724,6 +724,95 @@ svg.wedge { display: block; }
   color: var(--green);
   line-height: 1.5;
 }
+
+/* ── TEMPO SLIDE ── */
+.tempo-card {
+  border-radius: 14px;
+  padding: 10px 14px;
+  width: 100%;
+  max-width: 520px;
+  margin-bottom: 8px;
+}
+.tempo-card.ca { background: var(--ca-light); border: 1.5px solid var(--ca-border); }
+.tempo-card.cb { background: var(--cb-light); border: 1.5px solid var(--cb-border); }
+.tempo-main-row { display: flex; gap: 12px; align-items: flex-start; }
+.staff-mini-wrap { flex-shrink: 0; }
+.staff-mini {
+  background: white;
+  border: 1px solid #DDD;
+  border-radius: 8px;
+  padding: 5px 10px 6px;
+  width: 130px;
+}
+.staff-mini-header {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+.staff-mini-clef { font-size: 22px; line-height: 1; color: #333; flex-shrink: 0; }
+.staff-mini-word {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-style: italic;
+  font-weight: bold;
+  font-size: 13px;
+  color: #1a1a1a;
+  background: #FFFBDD;
+  padding: 1px 5px;
+  border-radius: 3px;
+  border: 1px solid #E0D898;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 82px;
+}
+.staff-mini-lines { display: flex; flex-direction: column; gap: 4px; }
+.s-line { height: 1px; background: #555; width: 100%; display: block; }
+.staff-mini-label { font-size: 9px; color: #AAA; text-align: center; margin-top: 4px; line-height: 1.4; }
+.tempo-detail { flex: 1; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.tempo-term-display {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-style: italic;
+  font-size: 24px;
+  font-weight: bold;
+  line-height: 1;
+}
+.tempo-card.ca .tempo-term-display { color: var(--ca-dark); }
+.tempo-card.cb .tempo-term-display { color: var(--cb-dark); }
+.tempo-korean-display { font-family: 'Jua', sans-serif; font-size: 14px; color: var(--text-mid); }
+.tempo-analogy-tag {
+  font-size: 12px;
+  background: white;
+  border-radius: 8px;
+  padding: 3px 9px;
+  color: var(--text);
+  align-self: flex-start;
+  line-height: 1.5;
+}
+.speed-bar { display: flex; align-items: center; gap: 7px; margin-top: 5px; }
+.speed-emoji { font-size: 15px; flex-shrink: 0; }
+.speed-track {
+  flex: 1; height: 7px;
+  background: #DDD;
+  border-radius: 4px;
+  position: relative;
+}
+.speed-fill {
+  position: absolute; top: 0; left: 0;
+  height: 100%; border-radius: 4px;
+}
+.tempo-card.ca .speed-fill { background: var(--ca); }
+.tempo-card.cb .speed-fill { background: var(--cb); }
+.speed-dot {
+  position: absolute; top: 50%;
+  transform: translate(-50%, -50%);
+  width: 15px; height: 15px;
+  border-radius: 50%;
+  border: 2.5px solid white;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.28);
+}
+.tempo-card.ca .speed-dot { background: var(--ca-dark); }
+.tempo-card.cb .speed-dot { background: var(--cb-dark); }
 </style>
 </head>
 <body>
@@ -1121,6 +1210,67 @@ function buildComposer(s, meta) {
   return el;
 }
 
+/* ── TEMPO BUILDER ── */
+function buildTempo(s, meta) {
+  const cl = clsOf(s.color);
+  const yt = s.youtube;
+  const el = document.createElement('div');
+  el.className = 'slide';
+  el.innerHTML = `
+    <h1 class="slide-title" style="font-size:clamp(16px,2.4vw,22px);">⏱️ 빠르기말 — <em style="font-family:Georgia,serif;font-style:italic;">${s.term}</em></h1>
+    <div class="tempo-card ${cl}">
+      <div class="tempo-main-row">
+        <div class="staff-mini-wrap">
+          <div class="staff-mini">
+            <div class="staff-mini-header">
+              <span class="staff-mini-clef">𝄞</span>
+              <span class="staff-mini-word">${s.term}</span>
+            </div>
+            <div class="staff-mini-lines">
+              <span class="s-line"></span><span class="s-line"></span><span class="s-line"></span><span class="s-line"></span><span class="s-line"></span>
+            </div>
+          </div>
+          <div class="staff-mini-label">악보 맨 앞에<br>이렇게 써있어요!</div>
+        </div>
+        <div class="tempo-detail">
+          <div class="tempo-term-display">${s.term}</div>
+          <div class="tempo-korean-display">${s.korean}</div>
+          <div class="tempo-analogy-tag">${s.emoji} ${s.analogy}</div>
+          <div class="speed-bar">
+            <span class="speed-emoji">🐢</span>
+            <div class="speed-track">
+              <div class="speed-fill" style="width:${s.speed}%"></div>
+              <div class="speed-dot" style="left:${s.speed}%"></div>
+            </div>
+            <span class="speed-emoji">🐇</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    ${yt ? `
+      <div class="yt-wrap">
+        <div class="yt-title">🎧 ${yt.title}</div>
+        ${yt.tips && yt.tips.length ? `
+          <div class="listen-box">
+            <div class="listen-label">👂 이렇게 들어봐요!</div>
+            ${yt.tips.map(t => `<div class="listen-item">• ${t}</div>`).join('')}
+          </div>
+        ` : ''}
+        <div class="yt-frame-wrap">
+          <iframe class="yt-frame"
+            src="https://www.youtube-nocookie.com/embed/${yt.video_id}?rel=0&modestbranding=1"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowfullscreen></iframe>
+        </div>
+        <a class="yt-link" href="https://www.youtube.com/watch?v=${yt.video_id}" target="_blank" rel="noopener noreferrer">
+          ▶ YouTube에서 더 크게 보기
+        </a>
+      </div>
+    ` : ''}
+  `;
+  return el;
+}
+
 /* ── QUIZ LOGIC ── */
 function renderQuestion(slideId) {
   const el = slideEls.find(e => e._slideId === slideId);
@@ -1358,6 +1508,7 @@ function loadLesson(data) {
     else if (s.type === 'features')   el = buildFeatures(s, meta);
     else if (s.type === 'composer')   el = buildComposer(s, meta);
     else if (s.type === 'review')     el = buildReview(s, meta);
+    else if (s.type === 'tempo')      el = buildTempo(s, meta);
     else return;
     el.id = sid;
     wrap.appendChild(el);

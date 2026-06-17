@@ -813,6 +813,53 @@ svg.wedge { display: block; }
 }
 .tempo-card.ca .speed-dot { background: var(--ca-dark); }
 .tempo-card.cb .speed-dot { background: var(--cb-dark); }
+
+/* ── DYNAMIC SLIDE ── */
+.dynamic-card {
+  border-radius: 14px; padding: 10px 14px;
+  width: 100%; max-width: 520px; margin-bottom: 8px;
+}
+.dynamic-card.ca { background: var(--ca-light); border: 1.5px solid var(--ca-border); }
+.dynamic-card.cb { background: var(--cb-light); border: 1.5px solid var(--cb-border); }
+.dynamic-main-row { display: flex; gap: 14px; align-items: flex-start; }
+.staff-below-wrap { flex-shrink: 0; }
+.staff-below {
+  background: white; border: 1px solid #DDD;
+  border-radius: 8px; padding: 5px 10px 8px; width: 130px;
+}
+.staff-below-lines { display: flex; flex-direction: column; gap: 4px; margin-bottom: 6px; }
+.staff-below-symbol {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-style: italic; font-weight: bold; font-size: 20px;
+  color: #1a1a1a; display: inline-block;
+  background: #FFFBDD; padding: 1px 6px;
+  border-radius: 3px; border: 1px solid #E0D898;
+}
+.dynamic-detail { flex: 1; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.dynamic-symbol-big {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-style: italic; font-weight: bold; font-size: 52px; line-height: 1;
+}
+.dynamic-card.ca .dynamic-symbol-big { color: var(--ca-dark); }
+.dynamic-card.cb .dynamic-symbol-big { color: var(--cb-dark); }
+.dynamic-full-name { font-size: 11px; color: var(--text-mid); font-style: italic; margin-top: 1px; }
+.dynamic-korean { font-family: 'Jua', sans-serif; font-size: 15px; color: var(--text-mid); }
+.dynamic-analogy-tag {
+  font-size: 12px; background: white; border-radius: 8px;
+  padding: 3px 9px; color: var(--text); align-self: flex-start; line-height: 1.5;
+}
+.vol-meter-wrap { display: flex; align-items: center; gap: 7px; margin-top: 5px; }
+.vol-meter-emoji { font-size: 16px; flex-shrink: 0; }
+.vol-meter-track {
+  flex: 1; height: 10px; background: #E0E0E0; border-radius: 5px; overflow: hidden;
+}
+.vol-meter-fill { height: 100%; border-radius: 5px; }
+.dynamic-card.ca .vol-meter-fill { background: var(--ca); }
+.dynamic-card.cb .vol-meter-fill { background: var(--cb); }
+.dyn-vis-wrap {
+  display: flex; align-items: center; gap: 16px;
+  width: 100%; max-width: 520px; padding: 2px 0;
+}
 </style>
 </head>
 <body>
@@ -1210,6 +1257,84 @@ function buildComposer(s, meta) {
   return el;
 }
 
+/* ── DYNAMIC BUILDER ── */
+function buildDynamic(s, meta, slideId) {
+  const cl = clsOf(s.color);
+  const color = colorOf(s.color, meta);
+  const rId = `dyn-r-${slideId}`;
+  const dotId = `dyn-d-${slideId}`;
+  const btnId = `dyn-b-${slideId}`;
+  const el = document.createElement('div');
+  el.className = 'slide';
+  el.innerHTML = `
+    <h1 class="slide-title" style="font-size:clamp(16px,2.4vw,22px);">🔊 셈여림 기호 — <em style="font-family:Georgia,serif;font-style:italic;">${s.symbol}</em></h1>
+    <div class="dynamic-card ${cl}">
+      <div class="dynamic-main-row">
+        <div class="staff-below-wrap">
+          <div class="staff-below">
+            <div class="staff-below-lines">
+              <span class="s-line"></span><span class="s-line"></span><span class="s-line"></span><span class="s-line"></span><span class="s-line"></span>
+            </div>
+            <div class="staff-below-symbol">${s.symbol}</div>
+          </div>
+          <div class="staff-mini-label">오선지 아래에<br>이렇게 써있어요!</div>
+        </div>
+        <div class="dynamic-detail">
+          <div class="dynamic-symbol-big">${s.symbol}</div>
+          <div class="dynamic-full-name">${s.full_name}</div>
+          <div class="dynamic-korean">${s.korean}</div>
+          <div class="dynamic-analogy-tag">${s.emoji} ${s.analogy}</div>
+          <div class="vol-meter-wrap">
+            <span class="vol-meter-emoji">${s.volume_emoji}</span>
+            <div class="vol-meter-track">
+              <div class="vol-meter-fill" style="width:${s.volume_pct}%"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="dyn-vis-wrap">
+      <div class="sound-visualizer ${cl}" style="width:80px;height:80px;border-radius:50%;flex-shrink:0;max-width:80px;">
+        <div class="ripple-container" id="${rId}"></div>
+        <div class="center-dot ${cl}" id="${dotId}" style="width:14px;height:14px;"></div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:5px;min-width:0;">
+        <p style="font-size:12px;color:var(--text-mid);line-height:1.5;">${s.listen_hint}</p>
+        <button class="btn btn-${cl}" id="${btnId}" onclick="playDynamic('${slideId}')" style="font-size:13px;padding:8px 20px;align-self:flex-start;">▶ 소리 들어보기</button>
+      </div>
+    </div>
+  `;
+  el._dynState = { gain: s.gain, rId, dotId, btnId, color };
+  return el;
+}
+
+function playDynamic(slideId) {
+  const el = slideEls.find(e => e.id === slideId);
+  if (!el || !el._dynState) return;
+  const { gain, rId, dotId, btnId, color } = el._dynState;
+  const btn = document.getElementById(btnId);
+  const dot = document.getElementById(dotId);
+  if (btn) { btn.disabled = true; btn.textContent = '▶ 재생 중...'; }
+  const ctx = getAudioCtx();
+  const osc = ctx.createOscillator();
+  const gainNode = ctx.createGain();
+  osc.connect(gainNode); gainNode.connect(ctx.destination);
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(440, ctx.currentTime);
+  gainNode.gain.setValueAtTime(gain, ctx.currentTime);
+  osc.start(ctx.currentTime);
+  osc.stop(ctx.currentTime + 2);
+  const rippleR = 18 + gain * 130;
+  animateRipples(rId, color, 0.5, rippleR * 0.55, rippleR);
+  const dotScale = 0.9 + gain * 3.5;
+  if (dot) dot.style.transform = `scale(${dotScale})`;
+  setTimeout(() => {
+    if (btn) { btn.disabled = false; btn.textContent = '▶ 다시 들어보기'; }
+    if (dot) dot.style.transform = 'scale(1)';
+    clearRipples(rId);
+  }, 2200);
+}
+
 /* ── TEMPO BUILDER ── */
 function buildTempo(s, meta) {
   const cl = clsOf(s.color);
@@ -1509,6 +1634,7 @@ function loadLesson(data) {
     else if (s.type === 'composer')   el = buildComposer(s, meta);
     else if (s.type === 'review')     el = buildReview(s, meta);
     else if (s.type === 'tempo')      el = buildTempo(s, meta);
+    else if (s.type === 'dynamic')    el = buildDynamic(s, meta, sid);
     else return;
     el.id = sid;
     wrap.appendChild(el);

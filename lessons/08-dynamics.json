@@ -1,0 +1,124 @@
+{
+  "meta": {
+    "id": "08-dynamics",
+    "title": "셈여림 기호를 배워요!",
+    "subject": "음악",
+    "grade": "초등 1학년",
+    "color_a": "#B83820",
+    "color_b": "#2070A8",
+    "color_a_light": "#FFECE8",
+    "color_b_light": "#E8F2FF",
+    "color_a_dark": "#7A1808",
+    "color_b_dark": "#103870",
+    "color_a_border": "#F5B0A0",
+    "color_b_border": "#90C0F0",
+    "result_message": "셈여림 기호를 알면 악보만 보고도 얼마나 크게 연주할지 알 수 있어요!"
+  },
+  "slides": [
+    {
+      "type": "review",
+      "title": "🔙 지난 시간에 배웠어요!",
+      "subtitle": "빠르기말을 기억하나요? 함께 복습해봐요",
+      "era": "빠르기말 (Tempo Marking)",
+      "era_emoji": "⏱️",
+      "points": [
+        { "emoji": "📍", "text": "악보 맨 앞 오선지 위에 써있어요" },
+        { "emoji": "🇮🇹", "text": "이탈리아어로 쓰여 있어요" },
+        { "emoji": "⏱️", "text": "음악을 얼마나 빠르게 연주할지 알려줘요" }
+      ],
+      "composers": [
+        { "emoji": "🐢", "name": "Adagio (느리게)" },
+        { "emoji": "🚶", "name": "Andante (걷듯이)" },
+        { "emoji": "🐇", "name": "Allegro (빠르게)" }
+      ],
+      "next_text": "이제 소리의 크기! 셈여림 기호를 배워요 →"
+    },
+    {
+      "type": "intro",
+      "emoji": "🔊",
+      "title": "셈여림 기호를 배워요!",
+      "subtitle": "소리의 크기도 악보에 쓰여있어요",
+      "concepts": [
+        {
+          "name": "소리의 크기예요",
+          "symbol": "crescendo",
+          "description": "p는 조용하게, f는 세게! 얼마나 크게 연주할지 악보가 알려줘요 🔊",
+          "color": "a"
+        },
+        {
+          "name": "오선지 아래에 있어요",
+          "symbol": "plain",
+          "description": "빠르기말은 오선지 위, 셈여림은 오선지 아래! 위아래를 모두 봐야 해요 👇",
+          "color": "b"
+        }
+      ],
+      "analogy": "크레센도(점점 크게)는 이미 배웠죠? 셈여림 기호는 처음부터 얼마나 크게 시작할지 알려줘요. 오선지 아래 왼쪽에 써있으니 꼭 찾아봐요 🎼"
+    },
+    {
+      "type": "dynamic",
+      "symbol": "p",
+      "full_name": "piano (피아노)",
+      "korean": "여리게",
+      "emoji": "🤫",
+      "analogy": "속삭이듯 아주 조용히",
+      "volume_emoji": "🔈",
+      "volume_pct": 20,
+      "gain": 0.06,
+      "listen_hint": "이 소리처럼 아주 조용하게 연주해요. 귀를 쫑긋 세워야 들릴 정도예요!",
+      "color": "b"
+    },
+    {
+      "type": "dynamic",
+      "symbol": "mf",
+      "full_name": "mezzo forte (메조 포르테)",
+      "korean": "조금 세게",
+      "emoji": "🗣️",
+      "analogy": "평소 대화하듯 자연스럽게",
+      "volume_emoji": "🔉",
+      "volume_pct": 52,
+      "gain": 0.28,
+      "listen_hint": "너무 크지도, 너무 작지도 않아요. p보다 분명히 더 크게 들리죠?",
+      "color": "a"
+    },
+    {
+      "type": "dynamic",
+      "symbol": "f",
+      "full_name": "forte (포르테)",
+      "korean": "세게",
+      "emoji": "📢",
+      "analogy": "힘차게 외치듯 크고 당당하게",
+      "volume_emoji": "🔊",
+      "volume_pct": 85,
+      "gain": 0.65,
+      "listen_hint": "힘차고 크게! p와 비교해서 얼마나 차이가 나는지 느껴봐요 📢",
+      "color": "b"
+    },
+    {
+      "type": "quiz",
+      "title": "퀴즈 타임!",
+      "subtitle": "셈여림 기호를 얼마나 알게 됐나요?",
+      "questions": [
+        {
+          "q": "셈여림 기호는 악보의 어디에 써있을까요?",
+          "options": ["오선지 위에", "오선지 아래에", "음표 옆에"],
+          "answer": 1
+        },
+        {
+          "q": "'f'는 어떻게 연주하라는 뜻일까요?",
+          "options": ["여리게", "조금 세게", "세게"],
+          "answer": 2
+        },
+        {
+          "q": "조용하게 연주하라는 기호는 무엇일까요?",
+          "options": ["f", "mf", "p"],
+          "answer": 2
+        },
+        {
+          "q": "크레센도(점점 크게)로 연주하면 마지막엔 어떤 느낌이 돼야 할까요?",
+          "options": ["p처럼 조용하게", "f처럼 세게", "mf처럼 보통으로"],
+          "answer": 1
+        }
+      ]
+    }
+  ]
+}

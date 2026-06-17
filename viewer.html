@@ -901,6 +901,10 @@ let totalSlides = 0;
 let audioCtx = null;
 let quizState = { current: 0, score: 0, answered: false };
 const slideEls = [];
+const NOTE_FREQ = {
+  C4:261.63, D4:293.66, E4:329.63, F4:349.23,
+  G4:392.00, A4:440.00, B4:493.88, C5:523.25
+};
 
 /* ── AUDIO ── */
 function getAudioCtx() {
@@ -1304,35 +1308,46 @@ function buildDynamic(s, meta, slideId) {
       </div>
     </div>
   `;
-  el._dynState = { gain: s.gain, rId, dotId, btnId, color };
+  el._dynState = { gain: s.gain, melody: s.melody || ['C4','G4','E4','G4'], rId, dotId, btnId, color };
   return el;
 }
 
 function playDynamic(slideId) {
   const el = slideEls.find(e => e.id === slideId);
   if (!el || !el._dynState) return;
-  const { gain, rId, dotId, btnId, color } = el._dynState;
+  const { gain, melody, rId, dotId, btnId, color } = el._dynState;
   const btn = document.getElementById(btnId);
-  const dot = document.getElementById(dotId);
   if (btn) { btn.disabled = true; btn.textContent = '▶ 재생 중...'; }
   const ctx = getAudioCtx();
-  const osc = ctx.createOscillator();
-  const gainNode = ctx.createGain();
-  osc.connect(gainNode); gainNode.connect(ctx.destination);
-  osc.type = 'sine';
-  osc.frequency.setValueAtTime(440, ctx.currentTime);
-  gainNode.gain.setValueAtTime(gain, ctx.currentTime);
-  osc.start(ctx.currentTime);
-  osc.stop(ctx.currentTime + 2);
-  const rippleR = 18 + gain * 130;
-  animateRipples(rId, color, 0.5, rippleR * 0.55, rippleR);
-  const dotScale = 0.9 + gain * 3.5;
-  if (dot) dot.style.transform = `scale(${dotScale})`;
+  const noteDur = 0.36;
+  const noteGap = 0.04;
+  melody.forEach((note, i) => {
+    const freq = NOTE_FREQ[note] || 440;
+    const t = ctx.currentTime + i * (noteDur + noteGap);
+    const osc = ctx.createOscillator();
+    const g = ctx.createGain();
+    osc.connect(g); g.connect(ctx.destination);
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(freq, t);
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(gain, t + 0.03);
+    g.gain.setValueAtTime(gain, t + noteDur - 0.06);
+    g.gain.linearRampToValueAtTime(0, t + noteDur);
+    osc.start(t); osc.stop(t + noteDur + 0.01);
+    setTimeout(() => {
+      const rippleR = 15 + gain * 115;
+      animateRipples(rId, color, 0.5, rippleR * 0.5, rippleR);
+      const dotEl = document.getElementById(dotId);
+      if (dotEl) dotEl.style.transform = `scale(${0.9 + gain * 3})`;
+    }, i * (noteDur + noteGap) * 1000);
+  });
+  const total = melody.length * (noteDur + noteGap);
   setTimeout(() => {
     if (btn) { btn.disabled = false; btn.textContent = '▶ 다시 들어보기'; }
-    if (dot) dot.style.transform = 'scale(1)';
+    const dotEl = document.getElementById(dotId);
+    if (dotEl) dotEl.style.transform = 'scale(1)';
     clearRipples(rId);
-  }, 2200);
+  }, total * 1000 + 300);
 }
 
 /* ── TEMPO BUILDER ── */

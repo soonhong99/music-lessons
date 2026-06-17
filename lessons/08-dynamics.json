@@ -64,7 +64,8 @@
       "volume_emoji": "🔈",
       "volume_pct": 20,
       "gain": 0.06,
-      "listen_hint": "이 소리처럼 아주 조용하게 연주해요. 귀를 쫑긋 세워야 들릴 정도예요!",
+      "melody": ["C4","C4","G4","G4","A4","A4","G4"],
+      "listen_hint": "반짝반짝 작은별을 p(여리게)로 연주해요. 귀를 쫑긋 세워야 들릴 정도예요!",
       "color": "b"
     },
     {
@@ -77,7 +78,8 @@
       "volume_emoji": "🔉",
       "volume_pct": 52,
       "gain": 0.28,
-      "listen_hint": "너무 크지도, 너무 작지도 않아요. p보다 분명히 더 크게 들리죠?",
+      "melody": ["C4","C4","G4","G4","A4","A4","G4"],
+      "listen_hint": "같은 멜로디를 mf(조금 세게)로! p보다 분명히 더 크게 들리죠?",
       "color": "a"
     },
     {
@@ -90,7 +92,8 @@
       "volume_emoji": "🔊",
       "volume_pct": 85,
       "gain": 0.65,
-      "listen_hint": "힘차고 크게! p와 비교해서 얼마나 차이가 나는지 느껴봐요 📢",
+      "melody": ["C4","C4","G4","G4","A4","A4","G4"],
+      "listen_hint": "이번엔 f(세게)로! p와 f를 비교하면 얼마나 차이가 나는지 느껴봐요 📢",
       "color": "b"
     },
     {

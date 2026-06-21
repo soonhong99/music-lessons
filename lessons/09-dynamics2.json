@@ -1,0 +1,136 @@
+{
+  "meta": {
+    "id": "09-dynamics2",
+    "title": "셈여림 기호를 완성해요!",
+    "subject": "음악",
+    "grade": "초등 1학년",
+    "color_a": "#7030B0",
+    "color_b": "#188060",
+    "color_a_light": "#F0E8FF",
+    "color_b_light": "#E0F8F0",
+    "color_a_dark": "#420870",
+    "color_b_dark": "#0A4838",
+    "color_a_border": "#C0A0E0",
+    "color_b_border": "#80D0B0",
+    "result_message": "이제 pp부터 ff까지 다섯 가지 셈여림 기호를 모두 읽을 수 있어요!"
+  },
+  "slides": [
+    {
+      "type": "review",
+      "title": "🔙 지난 시간에 배웠어요!",
+      "subtitle": "셈여림 기호를 기억하나요? 함께 복습해봐요",
+      "era": "셈여림 기호 (Dynamic Marking)",
+      "era_emoji": "🔊",
+      "points": [
+        { "emoji": "📍", "text": "오선지 아래에 써있어요 (빠르기말은 위, 셈여림은 아래!)" },
+        { "emoji": "🇮🇹", "text": "이탈리아어로 된 기호예요" },
+        { "emoji": "🔊", "text": "연주 소리의 크기를 알려줘요" }
+      ],
+      "composers": [
+        { "emoji": "🤫", "name": "p (여리게)" },
+        { "emoji": "🗣️", "name": "mf (조금 세게)" },
+        { "emoji": "📢", "name": "f (세게)" }
+      ],
+      "next_text": "이제 pp와 ff까지! 5개를 모두 완성해요 →"
+    },
+    {
+      "type": "dynamic",
+      "symbol": "pp",
+      "full_name": "pianissimo (피아니시모)",
+      "korean": "아주 여리게",
+      "emoji": "🤫",
+      "analogy": "잠자는 아기 곁에서 속닥이듯",
+      "volume_emoji": "🔈",
+      "volume_pct": 8,
+      "gain": 0.02,
+      "melody": ["C4","C4","G4","G4","A4","A4","G4"],
+      "listen_hint": "반짝반짝 작은별을 pp로! p보다도 훨씬 조용해요. 귀를 바짝 대야 들릴 정도예요 🤫",
+      "color": "b"
+    },
+    {
+      "type": "dynamic",
+      "symbol": "ff",
+      "full_name": "fortissimo (포르티시모)",
+      "korean": "아주 세게",
+      "emoji": "📣",
+      "analogy": "큰 공연장에서 힘차게 외치듯",
+      "volume_emoji": "🔊",
+      "volume_pct": 95,
+      "gain": 0.85,
+      "melody": ["C4","C4","G4","G4","A4","A4","G4"],
+      "listen_hint": "같은 멜로디를 ff로! f보다 훨씬 크고 힘차요. 이제 pp부터 ff까지 다 들어봤어요! 📣",
+      "color": "a"
+    },
+    {
+      "type": "features",
+      "title": "셈여림 기호 총정리!",
+      "subtitle": "pp · p · mf · f · ff 다섯 개를 모두 알아요",
+      "items": [
+        {
+          "emoji": "🎚️",
+          "title": "다섯 가지 셈여림 기호",
+          "desc": "pp(아주조용) → p(조용) → mf(보통) → f(세게) → ff(아주세게). 악보를 펼치면 이 중 하나가 꼭 써있어요. 이제 다섯 가지를 모두 읽을 수 있어요! 🎯"
+        },
+        {
+          "emoji": "📈",
+          "title": "크레센도 = p에서 f로 올라가요",
+          "desc": "크레센도(＜) 기호는 조용한 곳에서 시작해 점점 커져요. pp에서 시작하면 ff까지 올라갈 수 있어요. 이제 어디서 시작하고 어디서 끝나는지도 알 수 있어요! 🔈→🔊"
+        },
+        {
+          "emoji": "📉",
+          "title": "디크레센도 = f에서 p로 내려와요",
+          "desc": "디크레센도(＞)는 크게 시작해서 점점 작아져요. ff에서 시작하면 pp까지 내려올 수 있어요. 마치 멀어지는 기차 소리처럼요 🔊→🔈"
+        }
+      ],
+      "note": "🎵 셈여림 기호 + 크레센도/디크레센도 = 음악의 감정을 표현해요!"
+    },
+    {
+      "type": "compare",
+      "title": "크레센도 vs 디크레센도",
+      "subtitle": "셈여림 기호들 사이를 왔다 갔다 해봐요!",
+      "items": [
+        {
+          "name": "크레센도 ＜",
+          "symbol": "crescendo",
+          "description": "pp/p에서 시작해서 f/ff까지 점점 커져요",
+          "color": "a",
+          "audio": { "freq": 440, "start_gain": 0.02, "end_gain": 0.8, "duration": 3 }
+        },
+        {
+          "name": "디크레센도 ＞",
+          "symbol": "decrescendo",
+          "description": "ff/f에서 시작해서 p/pp까지 점점 작아져요",
+          "color": "b",
+          "audio": { "freq": 440, "start_gain": 0.8, "end_gain": 0.02, "duration": 3 }
+        }
+      ]
+    },
+    {
+      "type": "quiz",
+      "title": "퀴즈 타임!",
+      "subtitle": "셈여림 기호 5개, 얼마나 알게 됐나요?",
+      "questions": [
+        {
+          "q": "pp(피아니시모)는 무슨 뜻일까요?",
+          "options": ["세게", "아주 세게", "아주 여리게"],
+          "answer": 2
+        },
+        {
+          "q": "f보다 더 세게 연주하라는 기호는 무엇일까요?",
+          "options": ["pp", "mf", "ff"],
+          "answer": 2
+        },
+        {
+          "q": "크레센도(점점 크게)로 연주하면 소리가 어떻게 될까요?",
+          "options": ["점점 작아져요", "계속 똑같아요", "점점 커져요"],
+          "answer": 2
+        },
+        {
+          "q": "다음 중 가장 조용한 기호는 무엇일까요?",
+          "options": ["p", "mf", "pp"],
+          "answer": 2
+        }
+      ]
+    }
+  ]
+}

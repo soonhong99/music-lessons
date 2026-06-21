@@ -85,24 +85,33 @@
       "note": "🎵 셈여림 기호 + 크레센도/디크레센도 = 음악의 감정을 표현해요!"
     },
     {
-      "type": "compare",
-      "title": "크레센도 vs 디크레센도",
-      "subtitle": "셈여림 기호들 사이를 왔다 갔다 해봐요!",
-      "items": [
-        {
-          "name": "크레센도 ＜",
-          "symbol": "crescendo",
-          "description": "pp/p에서 시작해서 f/ff까지 점점 커져요",
-          "color": "a",
-          "audio": { "freq": 440, "start_gain": 0.02, "end_gain": 0.8, "duration": 3 }
-        },
-        {
-          "name": "디크레센도 ＞",
-          "symbol": "decrescendo",
-          "description": "ff/f에서 시작해서 p/pp까지 점점 작아져요",
-          "color": "b",
-          "audio": { "freq": 440, "start_gain": 0.8, "end_gain": 0.02, "duration": 3 }
-        }
+      "type": "dynamic_journey",
+      "title": "크레센도 — 반짝반짝 작은별로!",
+      "subtitle": "pp에서 ff까지, 한 단계씩 점점 커져요. 막대가 올라갈수록 소리도 커져요!",
+      "direction": "crescendo",
+      "color": "a",
+      "melody": ["C4","C4","G4","G4","A4","A4","G4"],
+      "steps": [
+        { "symbol": "pp", "label": "아주 여리게", "gain": 0.02, "volume_pct": 8  },
+        { "symbol": "p",  "label": "여리게",      "gain": 0.06, "volume_pct": 20 },
+        { "symbol": "mf", "label": "조금 세게",   "gain": 0.28, "volume_pct": 52 },
+        { "symbol": "f",  "label": "세게",        "gain": 0.65, "volume_pct": 85 },
+        { "symbol": "ff", "label": "아주 세게",   "gain": 0.85, "volume_pct": 95 }
+      ]
+    },
+    {
+      "type": "dynamic_journey",
+      "title": "디크레센도 — 반짝반짝 작은별로!",
+      "subtitle": "ff에서 pp까지, 한 단계씩 점점 작아져요. 막대가 내려갈수록 소리도 작아져요!",
+      "direction": "decrescendo",
+      "color": "b",
+      "melody": ["C4","C4","G4","G4","A4","A4","G4"],
+      "steps": [
+        { "symbol": "ff", "label": "아주 세게",   "gain": 0.85, "volume_pct": 95 },
+        { "symbol": "f",  "label": "세게",        "gain": 0.65, "volume_pct": 85 },
+        { "symbol": "mf", "label": "조금 세게",   "gain": 0.28, "volume_pct": 52 },
+        { "symbol": "p",  "label": "여리게",      "gain": 0.06, "volume_pct": 20 },
+        { "symbol": "pp", "label": "아주 여리게", "gain": 0.02, "volume_pct": 8  }
       ]
     },
     {

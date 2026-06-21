@@ -860,6 +860,70 @@ svg.wedge { display: block; }
   display: flex; align-items: center; gap: 16px;
   width: 100%; max-width: 520px; padding: 2px 0;
 }
+
+/* ── DYNAMIC JOURNEY SLIDE ── */
+.journey-card {
+  border-radius: 18px;
+  padding: 14px 16px 16px;
+  width: 100%; max-width: 520px; margin-bottom: 8px;
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+}
+.journey-card.ca { background: var(--ca-light); border: 2px solid var(--ca-border); }
+.journey-card.cb { background: var(--cb-light); border: 2px solid var(--cb-border); }
+.journey-header-sub { font-size: 12px; color: var(--text-mid); text-align: center; }
+.journey-steps {
+  display: flex; gap: 7px; height: 140px;
+  width: 100%; padding: 0 2px;
+}
+.journey-step {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; height: 100%;
+}
+.j-bar-wrap {
+  flex: 1; width: 100%; display: flex; align-items: flex-end; padding-bottom: 3px;
+}
+.j-bar {
+  width: 100%; border-radius: 5px 5px 0 0;
+  background: #DDDDD8; transform-origin: bottom center; min-height: 6px;
+  transition: background 0.35s ease, box-shadow 0.35s ease;
+}
+.j-symbol {
+  font-family: Georgia,'Times New Roman',serif; font-style: italic;
+  font-weight: bold; font-size: 13px; color: #BBBBBB; line-height: 1.3;
+  transition: color 0.3s, font-size 0.2s;
+}
+.j-label {
+  font-size: 9px; color: #CCCCCC; text-align: center;
+  white-space: nowrap; line-height: 1.2; transition: color 0.3s;
+}
+.journey-step.step-done .j-bar    { background: #C0C0B8; }
+.journey-step.step-done .j-symbol { color: #AAAAAA; }
+.journey-step.step-done .j-label  { color: #AAAAAA; }
+.journey-step.step-active .j-bar  { animation: barPulse 0.42s ease-in-out infinite alternate; }
+.journey-card.ca .journey-step.step-active .j-bar { background: var(--ca); box-shadow: 0 0 14px var(--ca-border); }
+.journey-card.cb .journey-step.step-active .j-bar { background: var(--cb); box-shadow: 0 0 14px var(--cb-border); }
+.journey-step.step-active .j-symbol { font-size: 16px; }
+.journey-card.ca .journey-step.step-active .j-symbol { color: var(--ca-dark); }
+.journey-card.cb .journey-step.step-active .j-symbol { color: var(--cb-dark); }
+.journey-card.ca .journey-step.step-active .j-label { color: var(--ca-dark); font-weight: bold; }
+.journey-card.cb .journey-step.step-active .j-label { color: var(--cb-dark); font-weight: bold; }
+@keyframes barPulse {
+  from { transform: scaleY(1); }
+  to   { transform: scaleY(1.09); }
+}
+.journey-status {
+  font-family: 'Jua', sans-serif; font-size: 12px;
+  color: var(--text-mid); text-align: center; min-height: 20px; width: 100%;
+}
+.journey-btn {
+  font-family: 'Jua', sans-serif; font-size: 14px;
+  padding: 9px 26px; border-radius: 30px; border: none;
+  cursor: pointer; transition: opacity 0.2s, transform 0.1s; color: white;
+}
+.journey-card.ca .journey-btn { background: var(--ca); }
+.journey-card.cb .journey-btn { background: var(--cb); }
+.journey-btn:hover:not(:disabled) { transform: scale(1.04); opacity: 0.9; }
+.journey-btn:disabled { opacity: 0.45; cursor: default; }
 </style>
 </head>
 <body>
@@ -1350,6 +1414,111 @@ function playDynamic(slideId) {
   }, total * 1000 + 300);
 }
 
+/* ── DYNAMIC JOURNEY BUILDER ── */
+function buildDynamicJourney(s, meta, slideId) {
+  const cl = clsOf(s.color);
+  const colorDark = s.color === 'a' ? meta.color_a_dark : meta.color_b_dark;
+  const isCresc = s.direction === 'crescendo';
+  const steps = s.steps;
+  const melody = s.melody || ['C4','C4','G4','G4','A4','A4','G4'];
+  const btnId = slideId + '-jbtn';
+  const statusId = slideId + '-jstatus';
+  const barAreaH = 100;
+  const stepsHtml = steps.map((step, i) => {
+    const barH = Math.round(6 + (step.volume_pct / 100) * barAreaH);
+    return `
+      <div class="journey-step" id="${slideId}-step-${i}">
+        <div class="j-bar-wrap"><div class="j-bar" style="height:${barH}px"></div></div>
+        <div class="j-symbol">${step.symbol}</div>
+        <div class="j-label">${step.label}</div>
+      </div>`;
+  }).join('');
+  const el = document.createElement('div');
+  el.className = 'slide';
+  el.innerHTML = `
+    <h1 class="slide-title" style="font-size:clamp(15px,2.4vw,20px);">${isCresc ? '📈' : '📉'} ${s.title}</h1>
+    <div class="journey-card ${cl}">
+      <div class="journey-header-sub">${s.subtitle}</div>
+      <div class="journey-steps">${stepsHtml}</div>
+      <div class="journey-status" id="${statusId}">▶ 버튼을 눌러서 시작해봐요!</div>
+      <button class="journey-btn" id="${btnId}" onclick="playDynamicJourney('${slideId}')">▶ 들어보기</button>
+    </div>`;
+  el._journeyState = { steps, melody, btnId, statusId, colorDark };
+  return el;
+}
+
+function playDynamicJourney(slideId) {
+  const el = slideEls.find(e => e.id === slideId);
+  if (!el || !el._journeyState) return;
+  const { steps, melody, btnId, statusId, colorDark } = el._journeyState;
+  const btn = document.getElementById(btnId);
+  const statusEl = document.getElementById(statusId);
+  if (btn) { btn.disabled = true; btn.textContent = '재생 중...'; }
+
+  const ctx = getAudioCtx();
+  const noteDur = 0.32, noteGap = 0.04;
+  const melodyDur = melody.length * (noteDur + noteGap);
+  const stepGap = 0.5;
+
+  steps.forEach((_, i) => {
+    const s = document.getElementById(`${slideId}-step-${i}`);
+    if (s) s.classList.remove('step-active', 'step-done');
+  });
+
+  steps.forEach((step, si) => {
+    const delayMs = si * (melodyDur + stepGap) * 1000;
+    setTimeout(() => {
+      if (si > 0) {
+        const prev = document.getElementById(`${slideId}-step-${si - 1}`);
+        if (prev) { prev.classList.remove('step-active'); prev.classList.add('step-done'); }
+      }
+      const cur = document.getElementById(`${slideId}-step-${si}`);
+      if (cur) cur.classList.add('step-active');
+      if (statusEl) {
+        const parts = steps.map((st, i) => {
+          if (i < si)   return `<span style="opacity:0.35">${st.symbol}</span>`;
+          if (i === si) return `<strong style="color:${colorDark}">${st.symbol} — ${st.label}</strong>`;
+          return `<span style="opacity:0.25">${st.symbol}</span>`;
+        }).join('<span style="margin:0 4px;opacity:0.3">→</span>');
+        statusEl.innerHTML = parts;
+      }
+    }, delayMs);
+
+    const audioT = ctx.currentTime + si * (melodyDur + stepGap);
+    melody.forEach((note, ni) => {
+      const freq = NOTE_FREQ[note] || 440;
+      const t = audioT + ni * (noteDur + noteGap);
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      osc.connect(g); g.connect(ctx.destination);
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, t);
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(step.gain, t + 0.03);
+      g.gain.setValueAtTime(step.gain, t + noteDur - 0.06);
+      g.gain.linearRampToValueAtTime(0, t + noteDur);
+      osc.start(t); osc.stop(t + noteDur + 0.01);
+    });
+  });
+
+  const totalMs = (melodyDur * steps.length + stepGap * (steps.length - 1)) * 1000;
+  setTimeout(() => {
+    steps.forEach((_, i) => {
+      const s = document.getElementById(`${slideId}-step-${i}`);
+      if (s) { s.classList.remove('step-active'); s.classList.add('step-done'); }
+    });
+    if (btn) { btn.disabled = false; btn.textContent = '▶ 다시 들어보기'; }
+    if (statusEl) statusEl.textContent = '🎉 어때요? 소리가 달라지는 게 느껴졌나요?';
+    setTimeout(() => {
+      steps.forEach((_, i) => {
+        const s = document.getElementById(`${slideId}-step-${i}`);
+        if (s) s.classList.remove('step-done');
+      });
+      if (statusEl) statusEl.textContent = '▶ 버튼을 눌러서 시작해봐요!';
+    }, 2500);
+  }, totalMs + 200);
+}
+
 /* ── TEMPO BUILDER ── */
 function buildTempo(s, meta) {
   const cl = clsOf(s.color);
@@ -1648,8 +1817,9 @@ function loadLesson(data) {
     else if (s.type === 'features')   el = buildFeatures(s, meta);
     else if (s.type === 'composer')   el = buildComposer(s, meta);
     else if (s.type === 'review')     el = buildReview(s, meta);
-    else if (s.type === 'tempo')      el = buildTempo(s, meta);
-    else if (s.type === 'dynamic')    el = buildDynamic(s, meta, sid);
+    else if (s.type === 'tempo')          el = buildTempo(s, meta);
+    else if (s.type === 'dynamic')        el = buildDynamic(s, meta, sid);
+    else if (s.type === 'dynamic_journey') el = buildDynamicJourney(s, meta, sid);
     else return;
     el.id = sid;
     wrap.appendChild(el);

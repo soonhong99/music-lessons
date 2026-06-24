@@ -861,6 +861,39 @@ svg.wedge { display: block; }
   width: 100%; max-width: 520px; padding: 2px 0;
 }
 
+/* ── ORNAMENT SLIDE ── */
+.ornament-card {
+  border-radius: 14px; padding: 10px 14px;
+  width: 100%; max-width: 520px; margin-bottom: 8px;
+}
+.ornament-card.ca { background: var(--ca-light); border: 1.5px solid var(--ca-border); }
+.ornament-card.cb { background: var(--cb-light); border: 1.5px solid var(--cb-border); }
+.ornament-main-row { display: flex; gap: 14px; align-items: flex-start; }
+.staff-ornament-wrap { flex-shrink: 0; }
+.staff-ornament {
+  background: white; border: 1px solid #DDD; border-radius: 8px;
+  padding: 4px 6px; width: 110px;
+  display: flex; align-items: center; justify-content: center;
+}
+.ornament-detail { flex: 1; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.ornament-name-big { font-family: 'Jua', sans-serif; font-size: 22px; line-height: 1; }
+.ornament-card.ca .ornament-name-big { color: var(--ca-dark); }
+.ornament-card.cb .ornament-name-big { color: var(--cb-dark); }
+.ornament-english { font-size: 12px; color: var(--text-mid); font-style: italic; margin-top: 1px; }
+.ornament-korean { font-family: 'Jua', sans-serif; font-size: 14px; color: var(--text-mid); }
+.ornament-analogy-tag {
+  font-size: 12px; background: white; border-radius: 8px;
+  padding: 3px 9px; color: var(--text); align-self: flex-start; line-height: 1.5;
+}
+.ornament-effects { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 2px; }
+.effect-tag { font-size: 10px; padding: 2px 8px; border-radius: 12px; background: white; }
+.ornament-card.ca .effect-tag { color: var(--ca-dark); border: 1px solid var(--ca-border); }
+.ornament-card.cb .effect-tag { color: var(--cb-dark); border: 1px solid var(--cb-border); }
+.orn-vis-wrap {
+  display: flex; align-items: center; gap: 16px;
+  width: 100%; max-width: 520px; padding: 2px 0;
+}
+
 /* ── DYNAMIC JOURNEY SLIDE ── */
 .journey-card {
   border-radius: 18px;
@@ -1414,6 +1447,165 @@ function playDynamic(slideId) {
   }, total * 1000 + 300);
 }
 
+/* ── ORNAMENT SVG HELPERS ── */
+function tremoloBadgeSVG(color) {
+  return `<svg viewBox="0 0 90 70" width="90" height="70" xmlns="http://www.w3.org/2000/svg">
+    <line x1="8" y1="28" x2="82" y2="28" stroke="#AAA" stroke-width="1"/>
+    <line x1="8" y1="35" x2="82" y2="35" stroke="#AAA" stroke-width="1"/>
+    <line x1="8" y1="42" x2="82" y2="42" stroke="#AAA" stroke-width="1"/>
+    <line x1="8" y1="49" x2="82" y2="49" stroke="#AAA" stroke-width="1"/>
+    <line x1="8" y1="56" x2="82" y2="56" stroke="#AAA" stroke-width="1"/>
+    <ellipse cx="45" cy="49" rx="6" ry="4.5" fill="#333"/>
+    <line x1="51" y1="49" x2="51" y2="16" stroke="#333" stroke-width="1.8"/>
+    <line x1="43" y1="38" x2="54" y2="31" stroke="${color}" stroke-width="3" stroke-linecap="round"/>
+    <line x1="43" y1="31" x2="54" y2="24" stroke="${color}" stroke-width="3" stroke-linecap="round"/>
+    <line x1="43" y1="24" x2="54" y2="17" stroke="${color}" stroke-width="3" stroke-linecap="round"/>
+  </svg>`;
+}
+
+function trillBadgeSVG(color) {
+  return `<svg viewBox="0 0 90 70" width="90" height="70" xmlns="http://www.w3.org/2000/svg">
+    <line x1="8" y1="32" x2="82" y2="32" stroke="#AAA" stroke-width="1"/>
+    <line x1="8" y1="39" x2="82" y2="39" stroke="#AAA" stroke-width="1"/>
+    <line x1="8" y1="46" x2="82" y2="46" stroke="#AAA" stroke-width="1"/>
+    <line x1="8" y1="53" x2="82" y2="53" stroke="#AAA" stroke-width="1"/>
+    <line x1="8" y1="60" x2="82" y2="60" stroke="#AAA" stroke-width="1"/>
+    <text x="18" y="20" font-family="Georgia,serif" font-style="italic" font-weight="bold" font-size="15" fill="${color}">tr</text>
+    <path d="M 36 16 Q 40 10 44 16 Q 48 22 52 16 Q 56 10 60 16 Q 64 22 68 16" fill="none" stroke="${color}" stroke-width="1.8" stroke-linecap="round"/>
+    <ellipse cx="42" cy="53" rx="6" ry="4.5" fill="#333"/>
+    <line x1="48" y1="53" x2="48" y2="23" stroke="#333" stroke-width="1.8"/>
+  </svg>`;
+}
+
+/* ── ORNAMENT BUILDER ── */
+function buildOrnament(s, meta, slideId) {
+  const cl = clsOf(s.color);
+  const color = colorOf(s.color, meta);
+  const rId  = `orn-r-${slideId}`;
+  const dotId = `orn-d-${slideId}`;
+  const btnId = `orn-b-${slideId}`;
+  const staffSVG = s.symbol_type === 'tremolo' ? tremoloBadgeSVG(color) : trillBadgeSVG(color);
+  const staffLabel = s.symbol_type === 'tremolo'
+    ? '음표 기둥에<br>이렇게 표시해요!'
+    : '음표 위에<br>이렇게 표시해요!';
+  const effectsHtml = (s.effect_words || []).map(w => `<span class="effect-tag">${w}</span>`).join('');
+  const yt = s.youtube;
+  const el = document.createElement('div');
+  el.className = 'slide';
+  el.innerHTML = `
+    <h1 class="slide-title" style="font-size:clamp(16px,2.4vw,22px);">🎻 ${s.name} — <em style="font-family:Georgia,serif;font-style:italic;">${s.english}</em></h1>
+    <div class="ornament-card ${cl}">
+      <div class="ornament-main-row">
+        <div class="staff-ornament-wrap">
+          <div class="staff-ornament">${staffSVG}</div>
+          <div class="staff-mini-label">${staffLabel}</div>
+        </div>
+        <div class="ornament-detail">
+          <div class="ornament-name-big">${s.name}</div>
+          <div class="ornament-english">${s.english}</div>
+          <div class="ornament-korean">${s.korean}</div>
+          <div class="ornament-analogy-tag">${s.emoji} ${s.analogy}</div>
+          <div class="ornament-effects">${effectsHtml}</div>
+        </div>
+      </div>
+    </div>
+    <div class="orn-vis-wrap">
+      <div class="sound-visualizer ${cl}" style="width:80px;height:80px;border-radius:50%;flex-shrink:0;max-width:80px;">
+        <div class="ripple-container" id="${rId}"></div>
+        <div class="center-dot ${cl}" id="${dotId}" style="width:14px;height:14px;"></div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:5px;min-width:0;">
+        <p style="font-size:12px;color:var(--text-mid);line-height:1.5;">${s.listen_hint}</p>
+        <button class="btn btn-${cl}" id="${btnId}" onclick="playOrnament('${slideId}')" style="font-size:13px;padding:8px 20px;align-self:flex-start;">▶ 소리 들어보기</button>
+      </div>
+    </div>
+    ${yt ? `
+      <div class="yt-wrap" style="margin-top:2px;">
+        <div class="yt-title">🎧 ${yt.title}</div>
+        ${yt.tips && yt.tips.length ? `
+          <div class="listen-box">
+            <div class="listen-label">👂 이렇게 들어봐요!</div>
+            ${yt.tips.map(t => `<div class="listen-item">• ${t}</div>`).join('')}
+          </div>
+        ` : ''}
+        <div class="yt-frame-wrap">
+          <iframe class="yt-frame"
+            src="https://www.youtube-nocookie.com/embed/${yt.video_id}?rel=0&modestbranding=1"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowfullscreen></iframe>
+        </div>
+        <a class="yt-link" href="https://www.youtube.com/watch?v=${yt.video_id}" target="_blank" rel="noopener noreferrer">▶ YouTube에서 더 크게 보기</a>
+      </div>
+    ` : ''}
+  `;
+  el._ornState = { audioType: s.symbol_type, rId, dotId, btnId, color };
+  return el;
+}
+
+function playOrnament(slideId) {
+  const el = slideEls.find(e => e.id === slideId);
+  if (!el || !el._ornState) return;
+  const { audioType, rId, dotId, btnId, color } = el._ornState;
+  const btn = document.getElementById(btnId);
+  if (btn) { btn.disabled = true; btn.textContent = '▶ 재생 중...'; }
+  const ctx = getAudioCtx();
+
+  if (audioType === 'tremolo') {
+    const freq = 293.66;
+    const noteOn = 0.055, noteOff = 0.018, num = 38;
+    for (let i = 0; i < num; i++) {
+      const t = ctx.currentTime + i * (noteOn + noteOff);
+      const osc = ctx.createOscillator(), g = ctx.createGain();
+      osc.connect(g); g.connect(ctx.destination);
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, t);
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(0.38, t + 0.01);
+      g.gain.setValueAtTime(0.38, t + noteOn - 0.01);
+      g.gain.linearRampToValueAtTime(0, t + noteOn);
+      osc.start(t); osc.stop(t + noteOn + 0.005);
+      setTimeout(() => {
+        animateRipples(rId, color, 0.5, 18, 44);
+        const d = document.getElementById(dotId);
+        if (d) d.style.transform = `scale(${1.4 + Math.random() * 0.6})`;
+      }, i * (noteOn + noteOff) * 1000);
+    }
+    const totalMs = num * (noteOn + noteOff) * 1000;
+    setTimeout(() => {
+      if (btn) { btn.disabled = false; btn.textContent = '▶ 다시 들어보기'; }
+      clearRipples(rId);
+      const d = document.getElementById(dotId); if (d) d.style.transform = 'scale(1)';
+    }, totalMs + 200);
+
+  } else {
+    const freqs = [261.63, 293.66];
+    const noteLen = 0.058, num = 44;
+    for (let i = 0; i < num; i++) {
+      const freq = freqs[i % 2], t = ctx.currentTime + i * noteLen;
+      const osc = ctx.createOscillator(), g = ctx.createGain();
+      osc.connect(g); g.connect(ctx.destination);
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, t);
+      g.gain.setValueAtTime(0.32, t);
+      g.gain.setValueAtTime(0.32, t + noteLen - 0.006);
+      g.gain.linearRampToValueAtTime(0, t + noteLen);
+      osc.start(t); osc.stop(t + noteLen + 0.005);
+      setTimeout(() => {
+        const col = i % 2 === 0 ? color : '#AAAAAA';
+        animateRipples(rId, col, 0.5, 12, 38);
+        const d = document.getElementById(dotId);
+        if (d) d.style.transform = `scale(${1.1 + (i % 2) * 0.5})`;
+      }, i * noteLen * 1000);
+    }
+    const totalMs = num * noteLen * 1000;
+    setTimeout(() => {
+      if (btn) { btn.disabled = false; btn.textContent = '▶ 다시 들어보기'; }
+      clearRipples(rId);
+      const d = document.getElementById(dotId); if (d) d.style.transform = 'scale(1)';
+    }, totalMs + 200);
+  }
+}
+
 /* ── DYNAMIC JOURNEY BUILDER ── */
 function buildDynamicJourney(s, meta, slideId) {
   const cl = clsOf(s.color);
@@ -1817,9 +2009,10 @@ function loadLesson(data) {
     else if (s.type === 'features')   el = buildFeatures(s, meta);
     else if (s.type === 'composer')   el = buildComposer(s, meta);
     else if (s.type === 'review')     el = buildReview(s, meta);
-    else if (s.type === 'tempo')          el = buildTempo(s, meta);
-    else if (s.type === 'dynamic')        el = buildDynamic(s, meta, sid);
+    else if (s.type === 'tempo')           el = buildTempo(s, meta);
+    else if (s.type === 'dynamic')         el = buildDynamic(s, meta, sid);
     else if (s.type === 'dynamic_journey') el = buildDynamicJourney(s, meta, sid);
+    else if (s.type === 'ornament')        el = buildOrnament(s, meta, sid);
     else return;
     el.id = sid;
     wrap.appendChild(el);

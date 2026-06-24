@@ -1003,6 +1003,18 @@ const NOTE_FREQ = {
   G4:392.00, A4:440.00, B4:493.88, C5:523.25
 };
 
+/* violin PeriodicWave — Fourier harmonics approximating bowed string timbre */
+let _violinWave = null, _violinWaveCtx = null;
+function getViolinWave(ctx) {
+  if (!_violinWave || _violinWaveCtx !== ctx) {
+    const real = new Float32Array([0, 1, 0.60, 0.40, 0.22, 0.14, 0.09, 0.06, 0.04, 0.02]);
+    const imag = new Float32Array(real.length);
+    _violinWave = ctx.createPeriodicWave(real, imag);
+    _violinWaveCtx = ctx;
+  }
+  return _violinWave;
+}
+
 /* ── AUDIO ── */
 function getAudioCtx() {
   if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -1424,8 +1436,16 @@ function playDynamic(slideId) {
     const osc = ctx.createOscillator();
     const g = ctx.createGain();
     osc.connect(g); g.connect(ctx.destination);
-    osc.type = 'triangle';
+    osc.setPeriodicWave(getViolinWave(ctx));
     osc.frequency.setValueAtTime(freq, t);
+    const lfo = ctx.createOscillator(), lfoG = ctx.createGain();
+    lfo.type = 'sine'; lfo.frequency.setValueAtTime(5.5, t);
+    lfoG.gain.setValueAtTime(0, t);
+    lfoG.gain.linearRampToValueAtTime(freq * 0.015, t + 0.08);
+    lfoG.gain.setValueAtTime(freq * 0.015, t + noteDur - 0.07);
+    lfoG.gain.linearRampToValueAtTime(0, t + noteDur);
+    lfo.connect(lfoG); lfoG.connect(osc.frequency);
+    lfo.start(t); lfo.stop(t + noteDur + 0.01);
     g.gain.setValueAtTime(0, t);
     g.gain.linearRampToValueAtTime(gain, t + 0.03);
     g.gain.setValueAtTime(gain, t + noteDur - 0.06);
@@ -1557,7 +1577,7 @@ function playOrnament(slideId) {
       const t = ctx.currentTime + i * (noteOn + noteOff);
       const osc = ctx.createOscillator(), g = ctx.createGain();
       osc.connect(g); g.connect(ctx.destination);
-      osc.type = 'triangle';
+      osc.setPeriodicWave(getViolinWave(ctx));
       osc.frequency.setValueAtTime(freq, t);
       g.gain.setValueAtTime(0, t);
       g.gain.linearRampToValueAtTime(0.38, t + 0.01);
@@ -1584,7 +1604,7 @@ function playOrnament(slideId) {
       const freq = freqs[i % 2], t = ctx.currentTime + i * noteLen;
       const osc = ctx.createOscillator(), g = ctx.createGain();
       osc.connect(g); g.connect(ctx.destination);
-      osc.type = 'triangle';
+      osc.setPeriodicWave(getViolinWave(ctx));
       osc.frequency.setValueAtTime(freq, t);
       g.gain.setValueAtTime(0.32, t);
       g.gain.setValueAtTime(0.32, t + noteLen - 0.006);
@@ -1683,8 +1703,16 @@ function playDynamicJourney(slideId) {
       const osc = ctx.createOscillator();
       const g = ctx.createGain();
       osc.connect(g); g.connect(ctx.destination);
-      osc.type = 'triangle';
+      osc.setPeriodicWave(getViolinWave(ctx));
       osc.frequency.setValueAtTime(freq, t);
+      const lfo2 = ctx.createOscillator(), lfoG2 = ctx.createGain();
+      lfo2.type = 'sine'; lfo2.frequency.setValueAtTime(5.5, t);
+      lfoG2.gain.setValueAtTime(0, t);
+      lfoG2.gain.linearRampToValueAtTime(freq * 0.015, t + 0.08);
+      lfoG2.gain.setValueAtTime(freq * 0.015, t + noteDur - 0.07);
+      lfoG2.gain.linearRampToValueAtTime(0, t + noteDur);
+      lfo2.connect(lfoG2); lfoG2.connect(osc.frequency);
+      lfo2.start(t); lfo2.stop(t + noteDur + 0.01);
       g.gain.setValueAtTime(0, t);
       g.gain.linearRampToValueAtTime(step.gain, t + 0.03);
       g.gain.setValueAtTime(step.gain, t + noteDur - 0.06);

@@ -861,6 +861,58 @@ svg.wedge { display: block; }
   width: 100%; max-width: 520px; padding: 2px 0;
 }
 
+/* ── REST SLIDE ── */
+.rest-card {
+  border-radius: 14px; padding: 10px 14px;
+  width: 100%; max-width: 520px; margin-bottom: 8px;
+}
+.rest-card.ca { background: var(--ca-light); border: 1.5px solid var(--ca-border); }
+.rest-card.cb { background: var(--cb-light); border: 1.5px solid var(--cb-border); }
+.rest-main-row { display: flex; gap: 14px; align-items: flex-start; }
+.staff-rest-wrap { flex-shrink: 0; }
+.staff-rest {
+  background: white; border: 1px solid #DDD; border-radius: 8px;
+  padding: 4px 6px; width: 110px;
+  display: flex; align-items: center; justify-content: center;
+}
+.rest-detail { flex: 1; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.rest-name-big { font-family: 'Jua', sans-serif; font-size: 20px; line-height: 1.1; }
+.rest-card.ca .rest-name-big { color: var(--ca-dark); }
+.rest-card.cb .rest-name-big { color: var(--cb-dark); }
+.rest-english { font-size: 11px; color: var(--text-mid); font-style: italic; }
+.rest-beats-row { display: flex; align-items: center; gap: 7px; margin-top: 2px; }
+.rest-beats-label { font-family: 'Jua', sans-serif; font-size: 13px; color: var(--text-mid); }
+.beat-dots { display: flex; gap: 5px; }
+.beat-dot {
+  width: 15px; height: 15px; border-radius: 50%;
+  background: #DDD; transition: background 0.15s, transform 0.12s;
+}
+.rest-card.ca .beat-dot.active { background: var(--ca); transform: scale(1.35); }
+.rest-card.ca .beat-dot.done  { background: var(--ca-border); }
+.rest-card.cb .beat-dot.active { background: var(--cb); transform: scale(1.35); }
+.rest-card.cb .beat-dot.done  { background: var(--cb-border); }
+.rest-note-compare {
+  font-size: 11px; color: var(--text-mid); background: white;
+  border-radius: 8px; padding: 3px 8px; align-self: flex-start;
+}
+.rest-analogy-tag {
+  font-size: 12px; background: white; border-radius: 8px;
+  padding: 3px 9px; color: var(--text); align-self: flex-start; line-height: 1.5;
+}
+.rest-mnemonic {
+  font-size: 11px; color: var(--text-mid);
+  background: #F8F6F3; border: 1px solid #E8E4DE;
+  border-radius: 8px; padding: 4px 10px; line-height: 1.5;
+}
+.rest-demo-wrap {
+  display: flex; align-items: center; gap: 14px;
+  width: 100%; max-width: 520px; padding: 2px 0;
+}
+.rest-status {
+  font-family: 'Jua', sans-serif; font-size: 13px;
+  color: var(--text-mid); min-height: 20px; line-height: 1.5;
+}
+
 /* ── ORNAMENT SLIDE ── */
 .ornament-card {
   border-radius: 14px; padding: 10px 14px;
@@ -1467,6 +1519,188 @@ function playDynamic(slideId) {
   }, total * 1000 + 300);
 }
 
+/* ── REST SVG HELPERS ── */
+function restBadgeSVG(restType, color) {
+  // Lines at y=12,22,32,42,52 (10px apart) from top
+  const ly = [12, 22, 32, 42, 52];
+  function lines(hlIdx) {
+    return ly.map((y, i) => {
+      const c  = i === hlIdx ? color : '#BBBBBB';
+      const sw = i === hlIdx ? '2'   : '1';
+      return `<line x1="8" y1="${y}" x2="82" y2="${y}" stroke="${c}" stroke-width="${sw}"/>`;
+    }).join('');
+  }
+  if (restType === 'whole') {
+    // block hangs FROM line idx=1 (y=22) — top of block AT that line
+    return `<svg viewBox="0 0 90 65" width="90" height="65" xmlns="http://www.w3.org/2000/svg">
+      ${lines(1)}
+      <rect x="31" y="22" width="28" height="8" rx="1" fill="${color}"/>
+    </svg>`;
+  }
+  if (restType === 'half') {
+    // block sits ON line idx=2 (y=32) — bottom of block AT that line
+    return `<svg viewBox="0 0 90 65" width="90" height="65" xmlns="http://www.w3.org/2000/svg">
+      ${lines(2)}
+      <rect x="31" y="24" width="28" height="8" rx="1" fill="${color}"/>
+    </svg>`;
+  }
+  if (restType === 'quarter') {
+    // Z-squiggle through all lines
+    return `<svg viewBox="0 0 90 65" width="90" height="65" xmlns="http://www.w3.org/2000/svg">
+      ${lines(-1)}
+      <line x1="55" y1="13" x2="41" y2="27" stroke="${color}" stroke-width="3.5" stroke-linecap="round"/>
+      <line x1="41" y1="27" x2="54" y2="31" stroke="${color}" stroke-width="2.5" stroke-linecap="round"/>
+      <line x1="54" y1="31" x2="38" y2="53" stroke="${color}" stroke-width="3.5" stroke-linecap="round"/>
+    </svg>`;
+  }
+  return '';
+}
+
+/* ── BUILD REST SLIDE ── */
+function buildRest(s, meta, slideId) {
+  const cl      = s.color === 'a' ? 'ca' : 'cb';
+  const color   = s.color === 'a' ? meta.color_a : meta.color_b;
+  const btnId   = slideId + '-rbtn';
+  const statusId= slideId + '-rst';
+  const dotIds  = Array.from({length: s.beats}, (_, i) => `${slideId}-bdot-${i}`);
+
+  const beatDotsHtml = dotIds.map(id =>
+    `<span class="beat-dot" id="${id}"></span>`
+  ).join('');
+
+  const staffNote = s.rest_type === 'whole'
+    ? '2번째 선 아래에 붙어요'
+    : s.rest_type === 'half'
+    ? '3번째 선 위에 올라앉아요'
+    : '오선지 가운데를 지나요';
+
+  const el = document.createElement('div');
+  el.className = 'slide';
+  el.innerHTML = `
+    <h1 class="slide-title" style="font-size:clamp(15px,2.2vw,21px);">🎵 ${s.name} — ${s.beats}박자 쉬기</h1>
+    <div class="rest-card ${cl}">
+      <div class="rest-main-row">
+        <div class="staff-rest-wrap">
+          <div class="staff-rest">${restBadgeSVG(s.rest_type, color)}</div>
+          <div style="font-size:10px;color:#888;text-align:center;margin-top:3px;line-height:1.4;">${staffNote}</div>
+        </div>
+        <div class="rest-detail">
+          <div class="rest-name-big">${s.name}</div>
+          <div class="rest-english">${s.english}</div>
+          <div class="rest-beats-row">
+            <span class="rest-beats-label">${s.beats}박자 쉬기</span>
+            <div class="beat-dots">${beatDotsHtml}</div>
+          </div>
+          <div class="rest-note-compare">🎵 ${s.note_compare}</div>
+          <div class="rest-analogy-tag">${s.emoji} ${s.analogy}</div>
+          <div class="rest-mnemonic">💡 ${s.mnemonic}</div>
+        </div>
+      </div>
+    </div>
+    <div class="rest-demo-wrap">
+      <div style="display:flex;flex-direction:column;gap:5px;min-width:0;flex:1;">
+        <div class="rest-status" id="${statusId}">버튼을 눌러서 쉼표가 뭔지 들어봐요!</div>
+        <button class="btn btn-${cl}" id="${btnId}" onclick="playRest('${slideId}')"
+          style="font-size:13px;padding:8px 22px;align-self:flex-start;">▶ 들어보기</button>
+      </div>
+    </div>`;
+
+  el._restState = { beats: s.beats, dotIds, btnId, statusId, color };
+  return el;
+}
+
+/* ── PLAY REST DEMO ── */
+function playRest(slideId) {
+  const el = document.getElementById(slideId);
+  if (!el || !el._restState) return;
+  const { beats, dotIds, btnId, statusId } = el._restState;
+
+  const btn      = document.getElementById(btnId);
+  const statusEl = document.getElementById(statusId);
+  if (btn) { btn.disabled = true; btn.textContent = '재생 중...'; }
+  dotIds.forEach(id => {
+    const d = document.getElementById(id);
+    if (d) d.classList.remove('active', 'done');
+  });
+
+  const ctx      = getAudioCtx();
+  const noteDur  = 0.30;
+  const noteGap  = 0.12;
+  const beatDur  = 0.55;
+  const beforeNotes = ['C4', 'E4'];
+  const afterNotes  = ['G4', 'G4'];
+
+  // ── helper: schedule one violin note ──
+  function schedNote(noteKey, startT, gain) {
+    const freq = NOTE_FREQ[noteKey] || 440;
+    const osc  = ctx.createOscillator();
+    const g    = ctx.createGain();
+    osc.connect(g); g.connect(ctx.destination);
+    osc.setPeriodicWave(getViolinWave(ctx));
+    osc.frequency.setValueAtTime(freq, startT);
+    g.gain.setValueAtTime(0, startT);
+    g.gain.linearRampToValueAtTime(gain, startT + 0.03);
+    g.gain.setValueAtTime(gain, startT + noteDur - 0.05);
+    g.gain.linearRampToValueAtTime(0, startT + noteDur);
+    osc.start(startT); osc.stop(startT + noteDur + 0.01);
+  }
+
+  // ── before notes ──
+  const t0 = ctx.currentTime;
+  if (statusEl) statusEl.textContent = '🎵 연주 중...';
+  beforeNotes.forEach((n, i) => schedNote(n, t0 + i * (noteDur + noteGap), 0.35));
+
+  const silenceStart = beforeNotes.length * (noteDur + noteGap);
+
+  // ── soft tick beats during silence (pre-scheduled) ──
+  for (let i = 0; i < beats; i++) {
+    const tickT = t0 + silenceStart + i * beatDur;
+    const to    = ctx.createOscillator();
+    const tg    = ctx.createGain();
+    to.connect(tg); tg.connect(ctx.destination);
+    to.type = 'sine'; to.frequency.setValueAtTime(1200, tickT);
+    tg.gain.setValueAtTime(0, tickT);
+    tg.gain.linearRampToValueAtTime(0.07, tickT + 0.008);
+    tg.gain.linearRampToValueAtTime(0, tickT + 0.055);
+    to.start(tickT); to.stop(tickT + 0.06);
+  }
+
+  // ── visual beat countdown ──
+  setTimeout(() => {
+    if (statusEl) statusEl.textContent = `🤫 쉬는 중... ${beats}박자를 세요!`;
+  }, silenceStart * 1000);
+
+  for (let i = 0; i < beats; i++) {
+    setTimeout(() => {
+      if (statusEl) statusEl.textContent = `🤫 ${i + 1} / ${beats} 박자`;
+      const d = document.getElementById(dotIds[i]);
+      if (d) d.classList.add('active');
+      setTimeout(() => {
+        if (d) { d.classList.remove('active'); d.classList.add('done'); }
+      }, 260);
+    }, (silenceStart + i * beatDur) * 1000);
+  }
+
+  // ── after notes ──
+  const silenceEnd = silenceStart + beats * beatDur;
+  setTimeout(() => {
+    if (statusEl) statusEl.textContent = '🎵 다시 연주!';
+    const t1 = ctx.currentTime;
+    afterNotes.forEach((n, i) => schedNote(n, t1 + i * (noteDur + noteGap), 0.35));
+  }, silenceEnd * 1000);
+
+  // ── done ──
+  const totalMs = (silenceEnd + afterNotes.length * (noteDur + noteGap) + 0.6) * 1000;
+  setTimeout(() => {
+    if (btn) { btn.disabled = false; btn.textContent = '▶ 다시 들어보기'; }
+    if (statusEl) statusEl.textContent = '버튼을 눌러서 쉼표가 뭔지 들어봐요!';
+    dotIds.forEach(id => {
+      const d = document.getElementById(id);
+      if (d) d.classList.remove('active', 'done');
+    });
+  }, totalMs);
+}
+
 /* ── ORNAMENT SVG HELPERS ── */
 function tremoloBadgeSVG(color) {
   return `<svg viewBox="0 0 90 70" width="90" height="70" xmlns="http://www.w3.org/2000/svg">
@@ -2041,6 +2275,7 @@ function loadLesson(data) {
     else if (s.type === 'dynamic')         el = buildDynamic(s, meta, sid);
     else if (s.type === 'dynamic_journey') el = buildDynamicJourney(s, meta, sid);
     else if (s.type === 'ornament')        el = buildOrnament(s, meta, sid);
+    else if (s.type === 'rest')            el = buildRest(s, meta, sid);
     else return;
     el.id = sid;
     wrap.appendChild(el);

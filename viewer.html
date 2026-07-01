@@ -694,12 +694,14 @@ svg.wedge { display: block; }
 }
 .review-comp-emoji { font-size: 22px; }
 .review-comp-vex {
-  width: 46px; height: 46px;
+  width: 92px; height: 78px;
   display: flex; align-items: center; justify-content: center;
   background: white; border-radius: 8px; overflow: hidden;
 }
-.review-comp-vex svg { display: block; width: 100%; height: 100%; }
-.review-comp-name  { font-family: 'Jua', sans-serif; font-size: 11px; color: #6A6460; }
+/* VexFlow sets an inline style="width:...;height:..." on its <svg> —
+   !important is required to override it and make the badge scale up. */
+.review-comp-vex svg { display: block; width: 100% !important; height: 100% !important; }
+.review-comp-name  { font-family: 'Jua', sans-serif; font-size: 13px; color: #6A6460; }
 .review-next {
   font-family: 'Jua', sans-serif;
   font-size: 13px;
@@ -878,9 +880,11 @@ svg.wedge { display: block; }
 .staff-rest-wrap { flex-shrink: 0; }
 .staff-rest {
   background: white; border: 1px solid #DDD; border-radius: 8px;
-  padding: 0; width: 110px; max-width: 100%; overflow: hidden;
+  padding: 0; width: 190px; max-width: 100%; overflow: hidden;
 }
-.staff-rest svg { display: block; width: 100%; height: auto; }
+/* VexFlow sets an inline style="width:...;height:..." on its <svg> —
+   !important is required to override it and make the badge scale up. */
+.staff-rest svg { display: block; width: 100% !important; height: auto !important; }
 .rest-main-row { flex-wrap: wrap; }
 .rest-detail { flex: 1; display: flex; flex-direction: column; gap: 4px; min-width: 200px; }
 .rest-name-big { font-family: 'Jua', sans-serif; font-size: 20px; line-height: 1.1; }
@@ -955,19 +959,22 @@ svg.wedge { display: block; }
 
 /* ── REPEAT SYMBOL SLIDE ── */
 .repeat-card {
-  border-radius: 14px; padding: 10px 14px;
-  width: 100%; max-width: 560px; margin-bottom: 8px;
+  border-radius: 14px; padding: 14px 18px 16px;
+  width: 100%; max-width: 620px; margin-bottom: 8px;
 }
 .repeat-card.ca { background: var(--ca-light); border: 1.5px solid var(--ca-border); }
 .repeat-card.cb { background: var(--cb-light); border: 1.5px solid var(--cb-border); }
-.repeat-main-row { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-start; }
-.staff-repeat-wrap { flex-shrink: 1; max-width: 100%; }
+.repeat-staff-row { display: flex; justify-content: center; margin-bottom: 8px; }
+.staff-repeat-wrap { width: 100%; max-width: 300px; }
 .staff-repeat {
-  background: white; border: 1px solid #DDD; border-radius: 8px;
-  overflow: hidden; max-width: 100%;
+  background: white; border: 1px solid #DDD; border-radius: 10px;
+  overflow: hidden; width: 100%;
 }
-.staff-repeat svg { display: block; width: 100%; height: auto; }
-.repeat-detail { flex: 1; display: flex; flex-direction: column; gap: 4px; min-width: 200px; }
+/* VexFlow sets an inline style="width:...;height:..." on its <svg> —
+   !important is required to override it so the notation scales up
+   to fill the (much larger) container instead of staying tiny. */
+.staff-repeat svg { display: block; width: 100% !important; height: auto !important; }
+.repeat-detail { display: flex; flex-direction: column; gap: 5px; }
 .repeat-name-big { font-family: 'Jua', sans-serif; font-size: 20px; line-height: 1.1; }
 .repeat-card.ca .repeat-name-big { color: var(--ca-dark); }
 .repeat-card.cb .repeat-name-big { color: var(--cb-dark); }
@@ -1639,7 +1646,12 @@ function renderVexRest(id, restType, color) {
   container.innerHTML = '';
   const { Renderer, Stave, StaveNote, Formatter } = Vex.Flow;
 
-  const W = 110, H = 84;
+  // NOTE: Stave's y-param is not the y of its top line — empirically the
+  // 5 lines render ~40px below the y passed to `new Stave(...)`. Using a
+  // negative offset here pulls the lines up so they (and the rest glyph)
+  // sit inside the canvas with even margins instead of being pushed low
+  // and clipped at the bottom.
+  const W = 110, H = 70;
   const renderer = new Renderer(container, Renderer.Backends.SVG);
   renderer.resize(W, H);
   const ctx = renderer.getContext();
@@ -1647,7 +1659,7 @@ function renderVexRest(id, restType, color) {
   // Staff lines in neutral gray
   ctx.setFillStyle('#AAAAAA');
   ctx.setStrokeStyle('#AAAAAA');
-  const stave = new Stave(5, 12, W - 12);
+  const stave = new Stave(5, -25, W - 12);
   stave.setContext(ctx).draw();
 
   // Rest glyph in theme color
@@ -1736,17 +1748,17 @@ function buildRepeatSymbol(s, meta, slideId) {
   el.innerHTML = `
     <h1 class="slide-title" style="font-size:clamp(15px,2.2vw,21px);">🔁 ${s.name}</h1>
     <div class="repeat-card ${cl}">
-      <div class="repeat-main-row">
+      <div class="repeat-staff-row">
         <div class="staff-repeat-wrap">
           <div class="staff-repeat" id="${slideId}-vex"></div>
         </div>
-        <div class="repeat-detail">
-          <div class="repeat-name-big">${s.name}</div>
-          <div class="repeat-symbol-tag">${symbolLabel}</div>
-          <div class="repeat-korean">${s.korean}</div>
-          <div class="repeat-analogy-tag">${s.emoji} ${s.analogy}</div>
-          <div class="repeat-rule-note">💡 ${s.rule}</div>
-        </div>
+      </div>
+      <div class="repeat-detail">
+        <div class="repeat-name-big">${s.name}</div>
+        <div class="repeat-symbol-tag">${symbolLabel}</div>
+        <div class="repeat-korean">${s.korean}</div>
+        <div class="repeat-analogy-tag">${s.emoji} ${s.analogy}</div>
+        <div class="repeat-rule-note">💡 ${s.rule}</div>
       </div>
     </div>`;
 

@@ -966,6 +966,11 @@ svg.wedge { display: block; }
 .repeat-card.cb { background: var(--cb-light); border: 1.5px solid var(--cb-border); }
 .repeat-staff-row { display: flex; justify-content: center; margin-bottom: 8px; }
 .staff-repeat-wrap { width: 100%; max-width: 300px; }
+/* Volta artwork packs two measures (native 300x150) into the same native
+   width as the single-measure ‖: :‖ artwork (170x130) — at a shared 300px
+   cap the volta version never scales up, so its notes look cramped.
+   Give it a wider cap so it enlarges by a comparable factor. */
+.staff-repeat-wrap.wide { max-width: 430px; }
 .staff-repeat {
   background: white; border: 1px solid #DDD; border-radius: 10px;
   overflow: hidden; width: 100%;
@@ -1020,13 +1025,6 @@ svg.wedge { display: block; }
 .rdemo-card.cb .rdemo-pill.active { background: var(--cb); color: white; border-color: var(--cb); transform: scale(1.15); }
 .rdemo-pill.played { background: #EEEEE8; color: #AAA; border-color: #EEEEE8; }
 .rdemo-group-label { font-size: 10px; color: #999; text-align: center; width: 100%; margin-top: -4px; }
-.rdemo-jump-flash {
-  font-family: 'Jua', sans-serif; font-size: 14px; font-weight: bold;
-  opacity: 0; transition: opacity 0.15s;
-}
-.rdemo-jump-flash.show { opacity: 1; }
-.rdemo-card.ca .rdemo-jump-flash { color: var(--ca-dark); }
-.rdemo-card.cb .rdemo-jump-flash { color: var(--cb-dark); }
 .rdemo-status {
   font-family: 'Jua', sans-serif; font-size: 12px;
   color: var(--text-mid); text-align: center; min-height: 20px; width: 100%;
@@ -1749,7 +1747,7 @@ function buildRepeatSymbol(s, meta, slideId) {
     <h1 class="slide-title" style="font-size:clamp(15px,2.2vw,21px);">🔁 ${s.name}</h1>
     <div class="repeat-card ${cl}">
       <div class="repeat-staff-row">
-        <div class="staff-repeat-wrap">
+        <div class="staff-repeat-wrap${s.symbol_type === 'volta' ? ' wide' : ''}">
           <div class="staff-repeat" id="${slideId}-vex"></div>
         </div>
       </div>
@@ -2192,7 +2190,6 @@ function buildRepeatDemo(s, meta, slideId) {
   const cl       = s.color === 'a' ? 'ca' : 'cb';
   const btnId    = slideId + '-rdbtn';
   const statusId = slideId + '-rdst';
-  const flashId  = slideId + '-rdflash';
 
   const pillsA = s.melody_a.map((n, i) =>
     `<span class="rdemo-pill" id="${slideId}-a-${i}">${n.replace(/[0-9]/g, '')}</span>`
@@ -2213,7 +2210,6 @@ function buildRepeatDemo(s, meta, slideId) {
         <span class="rdemo-bar-mark">:‖</span>
       </div>
       <div class="rdemo-group-label">도돌이표 구간 (2번 연주)</div>
-      <div class="rdemo-jump-flash" id="${flashId}">🔁 처음부터 다시!</div>
       <div class="rdemo-row">
         ${pillsB}
       </div>
@@ -2222,7 +2218,7 @@ function buildRepeatDemo(s, meta, slideId) {
       <button class="rdemo-btn" id="${btnId}" onclick="playRepeatDemo('${slideId}')">▶ 들어보기</button>
     </div>`;
 
-  el._repeatDemoState = { melodyA: s.melody_a, melodyB: s.melody_b, btnId, statusId, flashId };
+  el._repeatDemoState = { melodyA: s.melody_a, melodyB: s.melody_b, btnId, statusId };
   return el;
 }
 
@@ -2230,11 +2226,10 @@ function buildRepeatDemo(s, meta, slideId) {
 function playRepeatDemo(slideId) {
   const el = slideEls.find(e => e.id === slideId);
   if (!el || !el._repeatDemoState) return;
-  const { melodyA, melodyB, btnId, statusId, flashId } = el._repeatDemoState;
+  const { melodyA, melodyB, btnId, statusId } = el._repeatDemoState;
 
   const btn = document.getElementById(btnId);
   const statusEl = document.getElementById(statusId);
-  const flashEl = document.getElementById(flashId);
   if (btn) { btn.disabled = true; btn.textContent = '재생 중...'; }
 
   const allPillIds = [
@@ -2245,7 +2240,6 @@ function playRepeatDemo(slideId) {
     const p = document.getElementById(id);
     if (p) p.classList.remove('active', 'played');
   });
-  if (flashEl) flashEl.classList.remove('show');
 
   const ctx = getAudioCtx();
   const noteDur = 0.3, noteGap = 0.05;
@@ -2265,11 +2259,11 @@ function playRepeatDemo(slideId) {
     osc.start(startT); osc.stop(startT + noteDur + 0.01);
   }
 
-  // sequence: [pass1: A] [jump flash] [pass2: A] [B]
+  // sequence: [pass1: A] [pass2: A] [B] — every note advances audio and
+  // visual time by the exact same `step`, so they never drift apart.
   const seq = [];
   melodyA.forEach((n, i) => seq.push({ note: n, pillId: `${slideId}-a-${i}`, label: '▶ 1번째로 연주 중 (A)' }));
-  seq.push({ jump: true });
-  melodyA.forEach((n, i) => seq.push({ note: n, pillId: `${slideId}-a-${i}`, label: '🔁 도돌이표! 다시 연주 중 (A)' }));
+  melodyA.forEach((n, i) => seq.push({ note: n, pillId: `${slideId}-a-${i}`, label: '🔁 다시 연주 중 (A)' }));
   melodyB.forEach((n, i) => seq.push({ note: n, pillId: `${slideId}-b-${i}`, label: '▶ 그 다음 (B, 한 번만)' }));
 
   const t0 = ctx.currentTime;
@@ -2277,23 +2271,9 @@ function playRepeatDemo(slideId) {
   let visualMs = 0;
 
   seq.forEach(item => {
-    if (item.jump) {
-      const flashMs = visualMs;
-      setTimeout(() => {
-        if (statusEl) statusEl.textContent = '🔁 도돌이표(‖: :‖) — 처음부터 다시!';
-        if (flashEl) flashEl.classList.add('show');
-        allPillIds.slice(0, melodyA.length).forEach(id => {
-          const p = document.getElementById(id);
-          if (p) { p.classList.remove('active'); p.classList.add('played'); }
-        });
-      }, flashMs);
-      visualMs += 550;
-      return;
-    }
     schedNote(item.note, audioT);
     const delayMs = visualMs;
     setTimeout(() => {
-      if (flashEl) flashEl.classList.remove('show');
       if (statusEl) statusEl.textContent = item.label;
       const p = document.getElementById(item.pillId);
       if (p) { p.classList.remove('played'); p.classList.add('active'); }
@@ -2308,7 +2288,6 @@ function playRepeatDemo(slideId) {
   setTimeout(() => {
     if (btn) { btn.disabled = false; btn.textContent = '▶ 다시 들어보기'; }
     if (statusEl) statusEl.textContent = '🎉 A를 두 번, B를 한 번 연주했어요!';
-    if (flashEl) flashEl.classList.remove('show');
     setTimeout(() => {
       allPillIds.forEach(id => {
         const p = document.getElementById(id);
@@ -2492,14 +2471,21 @@ function playMini(slideId, i) {
 }
 
 /* ── NAVIGATION ── */
+let isNavigating = false;
 function navigate(dir) {
+  // Guard against double-clicks firing navigate() again before the 0.35s
+  // CSS opacity/transform transition finishes — without this, a second
+  // slide can be marked "active" while the previous one is still fading
+  // out, and both render on top of each other for a moment.
+  if (isNavigating) return;
   if (dir > 0 && !canAdvanceFromCurrentSlide()) return;
   const newIdx = currentIdx + dir;
   if (newIdx < 0 || newIdx >= totalSlides) return;
+  isNavigating = true;
   const curr = slideEls[currentIdx];
   curr.classList.add('exit-left');
   curr.classList.remove('active');
-  setTimeout(() => curr.classList.remove('exit-left'), 380);
+  setTimeout(() => { curr.classList.remove('exit-left'); isNavigating = false; }, 380);
   currentIdx = newIdx;
   slideEls[currentIdx].classList.add('active');
   updateNav();

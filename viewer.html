@@ -693,6 +693,12 @@ svg.wedge { display: block; }
   padding: 8px 16px;
 }
 .review-comp-emoji { font-size: 22px; }
+.review-comp-vex {
+  width: 46px; height: 46px;
+  display: flex; align-items: center; justify-content: center;
+  background: white; border-radius: 8px; overflow: hidden;
+}
+.review-comp-vex svg { display: block; width: 100%; height: 100%; }
 .review-comp-name  { font-family: 'Jua', sans-serif; font-size: 11px; color: #6A6460; }
 .review-next {
   font-family: 'Jua', sans-serif;
@@ -872,10 +878,11 @@ svg.wedge { display: block; }
 .staff-rest-wrap { flex-shrink: 0; }
 .staff-rest {
   background: white; border: 1px solid #DDD; border-radius: 8px;
-  padding: 0; width: 110px; overflow: hidden;
+  padding: 0; width: 110px; max-width: 100%; overflow: hidden;
 }
-.staff-rest svg { display: block; }
-.rest-detail { flex: 1; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.staff-rest svg { display: block; width: 100%; height: auto; }
+.rest-main-row { flex-wrap: wrap; }
+.rest-detail { flex: 1; display: flex; flex-direction: column; gap: 4px; min-width: 200px; }
 .rest-name-big { font-family: 'Jua', sans-serif; font-size: 20px; line-height: 1.1; }
 .rest-card.ca .rest-name-big { color: var(--ca-dark); }
 .rest-card.cb .rest-name-big { color: var(--cb-dark); }
@@ -920,14 +927,14 @@ svg.wedge { display: block; }
 }
 .ornament-card.ca { background: var(--ca-light); border: 1.5px solid var(--ca-border); }
 .ornament-card.cb { background: var(--cb-light); border: 1.5px solid var(--cb-border); }
-.ornament-main-row { display: flex; gap: 14px; align-items: flex-start; }
+.ornament-main-row { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-start; }
 .staff-ornament-wrap { flex-shrink: 0; }
 .staff-ornament {
   background: white; border: 1px solid #DDD; border-radius: 8px;
-  padding: 4px 6px; width: 110px;
+  padding: 4px 6px; width: 110px; max-width: 100%;
   display: flex; align-items: center; justify-content: center;
 }
-.ornament-detail { flex: 1; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.ornament-detail { flex: 1; display: flex; flex-direction: column; gap: 4px; min-width: 200px; }
 .ornament-name-big { font-family: 'Jua', sans-serif; font-size: 22px; line-height: 1; }
 .ornament-card.ca .ornament-name-big { color: var(--ca-dark); }
 .ornament-card.cb .ornament-name-big { color: var(--cb-dark); }
@@ -953,14 +960,14 @@ svg.wedge { display: block; }
 }
 .repeat-card.ca { background: var(--ca-light); border: 1.5px solid var(--ca-border); }
 .repeat-card.cb { background: var(--cb-light); border: 1.5px solid var(--cb-border); }
-.repeat-main-row { display: flex; gap: 14px; align-items: flex-start; }
-.staff-repeat-wrap { flex-shrink: 0; }
+.repeat-main-row { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-start; }
+.staff-repeat-wrap { flex-shrink: 1; max-width: 100%; }
 .staff-repeat {
   background: white; border: 1px solid #DDD; border-radius: 8px;
-  overflow: hidden;
+  overflow: hidden; max-width: 100%;
 }
-.staff-repeat svg { display: block; }
-.repeat-detail { flex: 1; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.staff-repeat svg { display: block; width: 100%; height: auto; }
+.repeat-detail { flex: 1; display: flex; flex-direction: column; gap: 4px; min-width: 200px; }
 .repeat-name-big { font-family: 'Jua', sans-serif; font-size: 20px; line-height: 1.1; }
 .repeat-card.ca .repeat-name-big { color: var(--ca-dark); }
 .repeat-card.cb .repeat-name-big { color: var(--cb-dark); }
@@ -1382,31 +1389,40 @@ function buildResult(meta, questions) {
 }
 
 /* ── REVIEW BUILDER ── */
-function buildReview(s, meta) {
+function buildReview(s, meta, slideId) {
   const el = document.createElement('div');
   el.className = 'slide';
   el.innerHTML = `
     <h1 class="slide-title" style="font-size:clamp(18px,2.6vw,24px);">${s.title}</h1>
     <p class="slide-subtitle">${s.subtitle}</p>
-    <div class="review-era-badge">${s.era_emoji} ${s.era}</div>
+    <div class="review-era-badge">${s.era_emoji ? s.era_emoji + ' ' : ''}${s.era}</div>
     <div class="review-points">
       ${s.points.map(p => `
         <div class="review-point">
-          <span class="review-point-emoji">${p.emoji}</span>
+          ${p.emoji ? `<span class="review-point-emoji">${p.emoji}</span>` : ''}
           <span>${p.text}</span>
         </div>
       `).join('')}
     </div>
     <div class="review-composers">
-      ${s.composers.map(c => `
+      ${s.composers.map((c, i) => `
         <div class="review-comp">
-          <span class="review-comp-emoji">${c.emoji}</span>
+          ${c.rest_type
+            ? `<div class="review-comp-vex" id="${slideId}-rc-${i}"></div>`
+            : c.emoji ? `<span class="review-comp-emoji">${c.emoji}</span>` : ''}
           <span class="review-comp-name">${c.name}</span>
         </div>
       `).join('')}
     </div>
     ${s.next_text ? `<div class="review-next">${s.next_text}</div>` : ''}
   `;
+
+  s.composers.forEach((c, i) => {
+    if (c.rest_type) {
+      queueVexRender(() => renderVexRest(`${slideId}-rc-${i}`, c.rest_type, '#5F5E5A'));
+    }
+  });
+
   return el;
 }
 
@@ -1651,19 +1667,21 @@ function renderVexRepeatSymbol(id, symbolType, color) {
   const { Renderer, Stave, StaveNote, Voice, Formatter, Barline, Volta } = Vex.Flow;
 
   if (symbolType === 'volta') {
-    const W = 300, H = 110;
+    // Extra top margin for the volta bracket + label, extra bottom margin
+    // for descending stems on low notes (measured via getBBox: needs ~-8..115).
+    const W = 300, H = 150;
     const renderer = new Renderer(container, Renderer.Backends.SVG);
     renderer.resize(W, H);
     const ctx = renderer.getContext();
 
-    const stave1 = new Stave(8, 18, 130);
+    const stave1 = new Stave(8, 38, 130);
     stave1.addClef('treble');
     stave1.setEndBarType(Barline.type.REPEAT_END);
     stave1.setVoltaType(Volta.type.BEGIN_END, '1.', -6);
     ctx.setFillStyle('#888'); ctx.setStrokeStyle('#888');
     stave1.setContext(ctx).draw();
 
-    const stave2 = new Stave(138, 18, 130);
+    const stave2 = new Stave(138, 38, 130);
     stave2.setEndBarType(Barline.type.END);
     stave2.setVoltaType(Volta.type.BEGIN_END, '2.', -6);
     stave2.setContext(ctx).draw();
@@ -1683,12 +1701,14 @@ function renderVexRepeatSymbol(id, symbolType, color) {
   }
 
   // 'both' (||: ... :||)  or  'end_only' (... :||)
-  const W = 170, H = 90;
+  // Extra bottom margin for descending stems on high notes like c/5
+  // (measured via getBBox: content reaches ~y=112 with a 90px-tall canvas).
+  const W = 170, H = 130;
   const renderer = new Renderer(container, Renderer.Backends.SVG);
   renderer.resize(W, H);
   const ctx = renderer.getContext();
 
-  const stave = new Stave(8, 15, 145);
+  const stave = new Stave(8, 20, 145);
   stave.addClef('treble');
   if (symbolType === 'both') stave.setBegBarType(Barline.type.REPEAT_BEGIN);
   stave.setEndBarType(Barline.type.REPEAT_END);
@@ -2584,7 +2604,7 @@ function loadLesson(data) {
     else if (s.type === 'timeline')   el = buildTimeline(s, meta);
     else if (s.type === 'features')   el = buildFeatures(s, meta);
     else if (s.type === 'composer')   el = buildComposer(s, meta);
-    else if (s.type === 'review')     el = buildReview(s, meta);
+    else if (s.type === 'review')     el = buildReview(s, meta, sid);
     else if (s.type === 'tempo')           el = buildTempo(s, meta);
     else if (s.type === 'dynamic')         el = buildDynamic(s, meta, sid);
     else if (s.type === 'dynamic_journey') el = buildDynamicJourney(s, meta, sid);

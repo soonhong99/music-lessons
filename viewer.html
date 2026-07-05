@@ -2470,24 +2470,66 @@ function renderVexTimeSignature(id, color) {
   voice.draw(ctx, stave);
 }
 
-/* ── VEXFLOW: COMMON TIME "C" SYMBOL (= 4/4) ── */
-function renderVexCommonTime(id, color) {
+/* ── VEXFLOW: 4/4 vs C — BIG SIDE-BY-SIDE COMPARISON ── */
+function renderVexCommonTimeCompare(id, color) {
   const container = document.getElementById(id);
   if (!container) return;
 
   container.innerHTML = '';
-  const { Renderer, Stave } = Vex.Flow;
+  const { Renderer, Stave, StaveNote, Voice, Formatter } = Vex.Flow;
 
-  const W = 95, H = 80;
+  const W = 320, H = 140;
   const renderer = new Renderer(container, Renderer.Backends.SVG);
   renderer.resize(W, H);
   const ctx = renderer.getContext();
 
-  const stave = new Stave(5, 5, 78);
-  stave.addClef('treble');
-  stave.addTimeSignature('C');
+  const stave1 = new Stave(6, 15, 145);
+  stave1.addClef('treble');
+  stave1.addTimeSignature('4/4');
   ctx.setFillStyle(color); ctx.setStrokeStyle(color);
-  stave.setContext(ctx).draw();
+  stave1.setContext(ctx).draw();
+
+  const stave2 = new Stave(163, 15, 150);
+  stave2.addClef('treble');
+  stave2.addTimeSignature('C');
+  stave2.setContext(ctx).draw();
+
+  const notes1 = ['c/4', 'c/4', 'c/4', 'c/4'].map(k => new StaveNote({ keys: [k], duration: 'q' }));
+  const voice1 = new Voice({ num_beats: 4, beat_value: 4 }).addTickables(notes1);
+  new Formatter().joinVoices([voice1]).format([voice1], 65);
+  voice1.draw(ctx, stave1);
+
+  const notes2 = ['c/4', 'c/4', 'c/4', 'c/4'].map(k => new StaveNote({ keys: [k], duration: 'q' }));
+  const voice2 = new Voice({ num_beats: 4, beat_value: 4 }).addTickables(notes2);
+  new Formatter().joinVoices([voice2]).format([voice2], 65);
+  voice2.draw(ctx, stave2);
+}
+
+/* ── BUILD COMMON TIME COMPARISON SLIDE (4/4 = C) ── */
+function buildCommonTime(s, meta, slideId) {
+  const cl    = s.color === 'a' ? 'ca' : 'cb';
+  const color = s.color === 'a' ? meta.color_a : meta.color_b;
+
+  const el = document.createElement('div');
+  el.className = 'slide';
+  el.innerHTML = `
+    <h1 class="slide-title" style="font-size:clamp(15px,2.2vw,21px);">🎼 ${s.name}</h1>
+    <div class="rest-card ${cl}">
+      <div class="repeat-staff-row">
+        <div class="staff-repeat-wrap wide">
+          <div class="staff-repeat" id="${slideId}-vex"></div>
+        </div>
+      </div>
+      <div class="repeat-detail">
+        <div class="repeat-name-big">${s.name}</div>
+        <div class="repeat-korean">${s.korean}</div>
+        <div class="repeat-analogy-tag">${s.analogy}</div>
+        <div class="repeat-rule-note">💡 ${s.rule}</div>
+      </div>
+    </div>`;
+
+  queueVexRender(() => renderVexCommonTimeCompare(slideId + '-vex', color));
+  return el;
 }
 
 /* ── BUILD TIME SIGNATURE SLIDE (4/4) ── */
@@ -2511,15 +2553,10 @@ function buildTimeSignature(s, meta, slideId) {
       </div>
       <div class="repeat-detail">
         <div class="repeat-name-big">${s.name}</div>
-        <div style="display:flex;align-items:center;gap:8px;">
-          <div class="repeat-symbol-tag">${s.top} / ${s.bottom}</div>
-          <span style="font-size:13px;color:var(--text-mid);">=</span>
-          <div class="staff-rest" id="${slideId}-vexc" style="width:74px;"></div>
-        </div>
+        <div class="repeat-symbol-tag">${s.top} / ${s.bottom}</div>
         <div class="repeat-korean">${s.korean}</div>
         <div class="repeat-analogy-tag">${s.analogy}</div>
         <div class="repeat-rule-note">💡 ${s.rule}</div>
-        ${s.common_time_note ? `<div class="repeat-rule-note">${s.common_time_note}</div>` : ''}
       </div>
     </div>
     <div class="rest-demo-wrap">
@@ -2533,7 +2570,6 @@ function buildTimeSignature(s, meta, slideId) {
 
   el._tsigState = { btnId, statusId, dotIds };
   queueVexRender(() => renderVexTimeSignature(slideId + '-vex', color));
-  queueVexRender(() => renderVexCommonTime(slideId + '-vexc', color));
   return el;
 }
 
@@ -2938,6 +2974,7 @@ function loadLesson(data) {
     else if (s.type === 'repeat_demo')     el = buildRepeatDemo(s, meta, sid);
     else if (s.type === 'note_value')      el = buildNoteValue(s, meta, sid);
     else if (s.type === 'time_signature')  el = buildTimeSignature(s, meta, sid);
+    else if (s.type === 'common_time')     el = buildCommonTime(s, meta, sid);
     else if (s.type === 'song_guide')      el = buildSongGuide(s, meta, sid);
     else return;
     el.id = sid;

@@ -601,6 +601,25 @@ svg.wedge { display: block; }
 }
 .yt-desc  { font-size: 11px; color: var(--text-mid); margin-top: 5px; text-align: center; line-height: 1.5; }
 
+/* Thumbnail-link card — used instead of an <iframe> embed when a video's
+   owner has embedding disabled (confirmed via the oEmbed API returning
+   401 for the May Song reference video). Always works since it just
+   links out to YouTube rather than trying to play inline. */
+.yt-thumb-link {
+  position: relative; display: block;
+  width: 100%; max-width: 320px; margin: 0 auto;
+  border-radius: 12px; overflow: hidden; background: #000;
+}
+.yt-thumb-img { display: block; width: 100%; aspect-ratio: 16/9; object-fit: cover; }
+.yt-thumb-play {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font-size: 22px; color: white;
+}
+.yt-thumb-play::before {
+  content: ''; position: absolute; inset: 0; background: rgba(0,0,0,0.25);
+}
+.yt-thumb-play { z-index: 1; }
+
 /* ── PIECE STORY ── */
 .piece-story-box {
   width: 100%;
@@ -1463,7 +1482,7 @@ function buildFeatures(s, meta) {
     <div class="features-list">
       ${s.items.map(item => `
         <div class="feature-row">
-          <span class="feature-icon">${item.emoji}</span>
+          ${item.emoji ? `<span class="feature-icon">${item.emoji}</span>` : ''}
           <div class="feature-body">
             <div class="feature-title">${item.title}</div>
             <div class="feature-desc">${item.desc}</div>
@@ -2298,6 +2317,287 @@ function playRepeatDemo(slideId) {
   }, visualMs + 250);
 }
 
+/* ── VEXFLOW: NOTE VALUE COMPARISON (quarter vs dotted quarter) ── */
+function renderVexNoteCompare(id, color) {
+  const container = document.getElementById(id);
+  if (!container) return;
+
+  container.innerHTML = '';
+  const { Renderer, Stave, StaveNote, Dot, Formatter } = Vex.Flow;
+
+  const W = 300, H = 130;
+  const renderer = new Renderer(container, Renderer.Backends.SVG);
+  renderer.resize(W, H);
+  const ctx = renderer.getContext();
+
+  const stave1 = new Stave(8, 20, 130);
+  stave1.addClef('treble');
+  ctx.setFillStyle('#888'); ctx.setStrokeStyle('#888');
+  stave1.setContext(ctx).draw();
+
+  const stave2 = new Stave(138, 20, 130);
+  stave2.setContext(ctx).draw();
+
+  ctx.setFillStyle(color); ctx.setStrokeStyle(color);
+  const note1 = new StaveNote({ keys: ['b/4'], duration: 'q' });
+  Formatter.FormatAndDraw(ctx, stave1, [note1]);
+
+  const note2 = new StaveNote({ keys: ['b/4'], duration: 'qd' });
+  Dot.buildAndAttach([note2], { all: true });
+  Formatter.FormatAndDraw(ctx, stave2, [note2]);
+}
+
+/* ── BUILD NOTE VALUE SLIDE (점4분음표) ── */
+function buildNoteValue(s, meta, slideId) {
+  const cl      = s.color === 'a' ? 'ca' : 'cb';
+  const color   = s.color === 'a' ? meta.color_a : meta.color_b;
+  const btnId   = slideId + '-nvbtn';
+  const statusId= slideId + '-nvst';
+  const dotIds  = [0, 1].map(i => `${slideId}-nvdot-${i}`);
+
+  const el = document.createElement('div');
+  el.className = 'slide';
+  el.innerHTML = `
+    <h1 class="slide-title" style="font-size:clamp(15px,2.2vw,21px);">🎵 ${s.name}</h1>
+    <div class="rest-card ${cl}">
+      <div class="repeat-staff-row">
+        <div class="staff-repeat-wrap">
+          <div class="staff-repeat" id="${slideId}-vex"></div>
+        </div>
+      </div>
+      <div class="repeat-detail">
+        <div class="repeat-name-big">${s.name}</div>
+        <div class="repeat-symbol-tag">${s.symbol_compare}</div>
+        <div class="repeat-korean">${s.korean}</div>
+        <div class="repeat-analogy-tag">${s.analogy}</div>
+        <div class="repeat-rule-note">💡 ${s.rule}</div>
+      </div>
+    </div>
+    <div class="rest-demo-wrap">
+      <div style="display:flex;flex-direction:column;gap:5px;min-width:0;flex:1;">
+        <div class="beat-dots" style="margin-bottom:2px;">
+          <span class="beat-dot" id="${dotIds[0]}"></span>
+          <span class="beat-dot" id="${dotIds[1]}"></span>
+        </div>
+        <div class="rest-status" id="${statusId}">버튼을 눌러서 길이 차이를 들어봐요!</div>
+        <button class="btn btn-${cl}" id="${btnId}" onclick="playNoteValueDemo('${slideId}')"
+          style="font-size:13px;padding:8px 22px;align-self:flex-start;">▶ 들어보기</button>
+      </div>
+    </div>`;
+
+  el._noteValueState = { btnId, statusId, dotIds };
+  queueVexRender(() => renderVexNoteCompare(slideId + '-vex', color));
+  return el;
+}
+
+/* ── PLAY NOTE VALUE DEMO ── */
+function playNoteValueDemo(slideId) {
+  const el = slideEls.find(e => e.id === slideId);
+  if (!el || !el._noteValueState) return;
+  const { btnId, statusId, dotIds } = el._noteValueState;
+
+  const btn = document.getElementById(btnId);
+  const statusEl = document.getElementById(statusId);
+  if (btn) { btn.disabled = true; btn.textContent = '재생 중...'; }
+  dotIds.forEach(id => { const d = document.getElementById(id); if (d) d.classList.remove('active', 'done'); });
+
+  const ctx = getAudioCtx();
+  const beat = 0.5; // one quarter-note beat, in seconds
+
+  function schedNote(startT, durBeats) {
+    const freq = NOTE_FREQ['A4'];
+    const dur = durBeats * beat;
+    const osc = ctx.createOscillator();
+    const g = ctx.createGain();
+    osc.connect(g); g.connect(ctx.destination);
+    osc.setPeriodicWave(getViolinWave(ctx));
+    osc.frequency.setValueAtTime(freq, startT);
+    g.gain.setValueAtTime(0, startT);
+    g.gain.linearRampToValueAtTime(0.35, startT + 0.03);
+    g.gain.setValueAtTime(0.35, startT + dur - 0.05);
+    g.gain.linearRampToValueAtTime(0, startT + dur);
+    osc.start(startT); osc.stop(startT + dur + 0.01);
+  }
+
+  const t0 = ctx.currentTime;
+  schedNote(t0, 1);          // quarter note = 1 beat
+  schedNote(t0 + 1.2, 1.5);  // dotted quarter note = 1.5 beats
+
+  if (statusEl) statusEl.textContent = '🎵 4분음표 = 1박!';
+  const d0 = document.getElementById(dotIds[0]);
+  if (d0) d0.classList.add('active');
+  setTimeout(() => { if (d0) { d0.classList.remove('active'); d0.classList.add('done'); } }, beat * 1000);
+
+  setTimeout(() => {
+    if (statusEl) statusEl.textContent = '🎵 점4분음표 = 1박 + 반박(0.5박) 더!';
+    const d1 = document.getElementById(dotIds[1]);
+    if (d1) d1.classList.add('active');
+    setTimeout(() => { if (d1) { d1.classList.remove('active'); d1.classList.add('done'); } }, beat * 1.5 * 1000);
+  }, 1200);
+
+  setTimeout(() => {
+    if (btn) { btn.disabled = false; btn.textContent = '▶ 다시 들어보기'; }
+    if (statusEl) statusEl.textContent = '점4분음표가 조금 더 길게 들렸나요?';
+    setTimeout(() => {
+      dotIds.forEach(id => { const d = document.getElementById(id); if (d) d.classList.remove('active', 'done'); });
+      if (statusEl) statusEl.textContent = '버튼을 눌러서 길이 차이를 들어봐요!';
+    }, 2200);
+  }, 1200 + beat * 1.5 * 1000 + 300);
+}
+
+/* ── VEXFLOW: 4/4 TIME SIGNATURE ── */
+function renderVexTimeSignature(id, color) {
+  const container = document.getElementById(id);
+  if (!container) return;
+
+  container.innerHTML = '';
+  const { Renderer, Stave, StaveNote, Voice, Formatter } = Vex.Flow;
+
+  const W = 220, H = 110;
+  const renderer = new Renderer(container, Renderer.Backends.SVG);
+  renderer.resize(W, H);
+  const ctx = renderer.getContext();
+
+  const stave = new Stave(8, 5, 195);
+  stave.addClef('treble');
+  stave.addTimeSignature('4/4');
+  ctx.setFillStyle(color); ctx.setStrokeStyle(color);
+  stave.setContext(ctx).draw();
+
+  const notes = ['c/4', 'c/4', 'c/4', 'c/4'].map(k => new StaveNote({ keys: [k], duration: 'q' }));
+  const voice = new Voice({ num_beats: 4, beat_value: 4 }).addTickables(notes);
+  new Formatter().joinVoices([voice]).format([voice], 110);
+  voice.draw(ctx, stave);
+}
+
+/* ── BUILD TIME SIGNATURE SLIDE (4/4) ── */
+function buildTimeSignature(s, meta, slideId) {
+  const cl      = s.color === 'a' ? 'ca' : 'cb';
+  const color   = s.color === 'a' ? meta.color_a : meta.color_b;
+  const btnId   = slideId + '-tsbtn';
+  const statusId= slideId + '-tsst';
+  const dotIds  = [0, 1, 2, 3].map(i => `${slideId}-tsdot-${i}`);
+  const dotsHtml = dotIds.map(id => `<span class="beat-dot" id="${id}"></span>`).join('');
+
+  const el = document.createElement('div');
+  el.className = 'slide';
+  el.innerHTML = `
+    <h1 class="slide-title" style="font-size:clamp(15px,2.2vw,21px);">🎼 ${s.name}</h1>
+    <div class="rest-card ${cl}">
+      <div class="repeat-staff-row">
+        <div class="staff-repeat-wrap">
+          <div class="staff-repeat" id="${slideId}-vex"></div>
+        </div>
+      </div>
+      <div class="repeat-detail">
+        <div class="repeat-name-big">${s.name}</div>
+        <div class="repeat-symbol-tag">${s.top} / ${s.bottom}</div>
+        <div class="repeat-korean">${s.korean}</div>
+        <div class="repeat-analogy-tag">${s.analogy}</div>
+        <div class="repeat-rule-note">💡 ${s.rule}</div>
+      </div>
+    </div>
+    <div class="rest-demo-wrap">
+      <div style="display:flex;flex-direction:column;gap:5px;min-width:0;flex:1;">
+        <div class="beat-dots" style="margin-bottom:2px;">${dotsHtml}</div>
+        <div class="rest-status" id="${statusId}">버튼을 눌러서 4박자를 세어봐요!</div>
+        <button class="btn btn-${cl}" id="${btnId}" onclick="playTimeSignatureDemo('${slideId}')"
+          style="font-size:13px;padding:8px 22px;align-self:flex-start;">▶ 들어보기</button>
+      </div>
+    </div>`;
+
+  el._tsigState = { btnId, statusId, dotIds };
+  queueVexRender(() => renderVexTimeSignature(slideId + '-vex', color));
+  return el;
+}
+
+/* ── PLAY TIME SIGNATURE DEMO ── */
+function playTimeSignatureDemo(slideId) {
+  const el = slideEls.find(e => e.id === slideId);
+  if (!el || !el._tsigState) return;
+  const { btnId, statusId, dotIds } = el._tsigState;
+
+  const btn = document.getElementById(btnId);
+  const statusEl = document.getElementById(statusId);
+  if (btn) { btn.disabled = true; btn.textContent = '재생 중...'; }
+  dotIds.forEach(id => { const d = document.getElementById(id); if (d) d.classList.remove('active', 'done'); });
+
+  const ctx = getAudioCtx();
+  const beat = 0.5;
+  const t0 = ctx.currentTime;
+  const labels = ['하나!', '둘', '셋', '넷'];
+
+  dotIds.forEach((id, i) => {
+    const t = t0 + i * beat;
+    const osc = ctx.createOscillator();
+    const g = ctx.createGain();
+    osc.connect(g); g.connect(ctx.destination);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(i === 0 ? 1500 : 1100, t);
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(i === 0 ? 0.14 : 0.08, t + 0.008);
+    g.gain.linearRampToValueAtTime(0, t + 0.06);
+    osc.start(t); osc.stop(t + 0.07);
+
+    setTimeout(() => {
+      dotIds.forEach(otherId => {
+        const od = document.getElementById(otherId);
+        if (od && otherId !== id) { od.classList.remove('active'); od.classList.add('done'); }
+      });
+      if (statusEl) statusEl.textContent = `${i + 1}박자 — ${labels[i]}`;
+      const d = document.getElementById(id);
+      if (d) { d.classList.remove('done'); d.classList.add('active'); }
+    }, i * beat * 1000);
+  });
+
+  const totalMs = dotIds.length * beat * 1000;
+  setTimeout(() => {
+    if (btn) { btn.disabled = false; btn.textContent = '▶ 다시 들어보기'; }
+    if (statusEl) statusEl.textContent = '한 마디에 4박자! 이게 4/4 박자표예요.';
+    dotIds.forEach(id => { const d = document.getElementById(id); if (d) { d.classList.remove('active'); d.classList.add('done'); } });
+    setTimeout(() => {
+      dotIds.forEach(id => { const d = document.getElementById(id); if (d) d.classList.remove('active', 'done'); });
+      if (statusEl) statusEl.textContent = '버튼을 눌러서 4박자를 세어봐요!';
+    }, 2200);
+  }, totalMs + 300);
+}
+
+/* ── BUILD SONG GUIDE SLIDE (May Song 연주 가이드) ── */
+function buildSongGuide(s, meta, slideId) {
+  const cl = clsOf(s.color);
+  const yt = s.youtube;
+  const infoTags = (s.info_tags || []).map(t => `<span class="repeat-symbol-tag" style="margin-right:6px;">${t}</span>`).join('');
+  const tipsHtml = (s.practice_tips || []).map(t => `<div class="listen-item">• ${t}</div>`).join('');
+
+  const el = document.createElement('div');
+  el.className = 'slide';
+  el.innerHTML = `
+    <h1 class="slide-title" style="font-size:clamp(16px,2.4vw,22px);">🎻 ${s.title}</h1>
+    <p class="slide-subtitle">${s.subtitle}</p>
+    <div class="rest-card ${cl}" style="max-width:520px;">
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;">${infoTags}</div>
+      <div class="repeat-rule-note">💡 ${s.rule}</div>
+    </div>
+    ${yt ? `
+      <div class="yt-wrap" style="margin-top:6px;">
+        <div class="yt-title">🎧 ${yt.title}</div>
+        ${tipsHtml ? `
+          <div class="listen-box">
+            <div class="listen-label">👂 이렇게 연습해봐요!</div>
+            ${tipsHtml}
+          </div>
+        ` : ''}
+        <a class="yt-thumb-link" href="https://www.youtube.com/watch?v=${yt.video_id}" target="_blank" rel="noopener noreferrer">
+          <img class="yt-thumb-img" src="https://img.youtube.com/vi/${yt.video_id}/hqdefault.jpg" alt="${yt.title}">
+          <span class="yt-thumb-play">▶</span>
+        </a>
+        <a class="yt-link" href="https://www.youtube.com/watch?v=${yt.video_id}" target="_blank" rel="noopener noreferrer">▶ YouTube에서 크게 보기</a>
+      </div>
+    ` : ''}
+  `;
+  return el;
+}
+
 /* ── TEMPO BUILDER ── */
 function buildTempo(s, meta) {
   const cl = clsOf(s.color);
@@ -2610,6 +2910,9 @@ function loadLesson(data) {
     else if (s.type === 'rest')            el = buildRest(s, meta, sid);
     else if (s.type === 'repeat_symbol')   el = buildRepeatSymbol(s, meta, sid);
     else if (s.type === 'repeat_demo')     el = buildRepeatDemo(s, meta, sid);
+    else if (s.type === 'note_value')      el = buildNoteValue(s, meta, sid);
+    else if (s.type === 'time_signature')  el = buildTimeSignature(s, meta, sid);
+    else if (s.type === 'song_guide')      el = buildSongGuide(s, meta, sid);
     else return;
     el.id = sid;
     wrap.appendChild(el);

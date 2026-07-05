@@ -2470,6 +2470,26 @@ function renderVexTimeSignature(id, color) {
   voice.draw(ctx, stave);
 }
 
+/* ── VEXFLOW: COMMON TIME "C" SYMBOL (= 4/4) ── */
+function renderVexCommonTime(id, color) {
+  const container = document.getElementById(id);
+  if (!container) return;
+
+  container.innerHTML = '';
+  const { Renderer, Stave } = Vex.Flow;
+
+  const W = 95, H = 80;
+  const renderer = new Renderer(container, Renderer.Backends.SVG);
+  renderer.resize(W, H);
+  const ctx = renderer.getContext();
+
+  const stave = new Stave(5, 5, 78);
+  stave.addClef('treble');
+  stave.addTimeSignature('C');
+  ctx.setFillStyle(color); ctx.setStrokeStyle(color);
+  stave.setContext(ctx).draw();
+}
+
 /* ── BUILD TIME SIGNATURE SLIDE (4/4) ── */
 function buildTimeSignature(s, meta, slideId) {
   const cl      = s.color === 'a' ? 'ca' : 'cb';
@@ -2491,10 +2511,15 @@ function buildTimeSignature(s, meta, slideId) {
       </div>
       <div class="repeat-detail">
         <div class="repeat-name-big">${s.name}</div>
-        <div class="repeat-symbol-tag">${s.top} / ${s.bottom}</div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div class="repeat-symbol-tag">${s.top} / ${s.bottom}</div>
+          <span style="font-size:13px;color:var(--text-mid);">=</span>
+          <div class="staff-rest" id="${slideId}-vexc" style="width:74px;"></div>
+        </div>
         <div class="repeat-korean">${s.korean}</div>
         <div class="repeat-analogy-tag">${s.analogy}</div>
         <div class="repeat-rule-note">💡 ${s.rule}</div>
+        ${s.common_time_note ? `<div class="repeat-rule-note">${s.common_time_note}</div>` : ''}
       </div>
     </div>
     <div class="rest-demo-wrap">
@@ -2508,6 +2533,7 @@ function buildTimeSignature(s, meta, slideId) {
 
   el._tsigState = { btnId, statusId, dotIds };
   queueVexRender(() => renderVexTimeSignature(slideId + '-vex', color));
+  queueVexRender(() => renderVexCommonTime(slideId + '-vexc', color));
   return el;
 }
 

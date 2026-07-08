@@ -922,6 +922,7 @@ svg.wedge { display: block; }
 .rest-card.cb .beat-dot.active { background: var(--cb); transform: scale(1.35); }
 .rest-card.cb .beat-dot.done  { background: var(--cb-border); }
 .beat-dot.strong { width: 20px; height: 20px; border: 2px solid #999; }
+.beat-dot.medium { width: 17px; height: 17px; border: 1.5px solid #BBB; }
 
 /* ── METER COMPARE SLIDE ── */
 .meter-row { padding: 8px 4px; border-radius: 10px; transition: background 0.25s; }
@@ -2653,10 +2654,12 @@ function buildMeterCompare(s, meta, slideId) {
   const statusId= slideId + '-mcst';
 
   const rowsHtml = s.meters.map((m, mi) => {
-    const dotIds = Array.from({ length: m.beats }, (_, i) => `${slideId}-mc-${mi}-${i}`);
-    const dotsHtml = dotIds.map((id, i) =>
-      `<span class="beat-dot${i === 0 ? ' strong' : ''}" id="${id}"></span>`
-    ).join('');
+    const dotIds = m.accents.map((_, i) => `${slideId}-mc-${mi}-${i}`);
+    const dotsHtml = dotIds.map((id, i) => {
+      const level = m.accents[i]; // 2=strong, 1=medium, 0=weak
+      const cls = level === 2 ? ' strong' : level === 1 ? ' medium' : '';
+      return `<span class="beat-dot${cls}" id="${id}"></span>`;
+    }).join('');
     return `
       <div class="meter-row" id="${slideId}-row-${mi}">
         <div class="meter-row-label">${m.label} <span class="meter-row-feel">(${m.feel})</span></div>
@@ -2707,7 +2710,8 @@ function playMeterCompare(slideId) {
   let visualMs = 0;
 
   meters.forEach((m, mi) => {
-    const dotIds = Array.from({ length: m.beats }, (_, i) => `${slideId}-mc-${mi}-${i}`);
+    const beats = m.accents.length;
+    const dotIds = m.accents.map((_, i) => `${slideId}-mc-${mi}-${i}`);
     const rowStartMs = visualMs;
     setTimeout(() => {
       meters.forEach((_, j) => {
@@ -2720,9 +2724,9 @@ function playMeterCompare(slideId) {
     }, rowStartMs);
 
     for (let rep = 0; rep < 2; rep++) {
-      for (let b = 0; b < m.beats; b++) {
-        const isStrong = b === 0;
-        const noteIdx = (rep * m.beats + b) % pitches.length;
+      for (let b = 0; b < beats; b++) {
+        const level = m.accents[b]; // 2=strong, 1=medium, 0=weak
+        const noteIdx = (rep * beats + b) % pitches.length;
         const freq = NOTE_FREQ[pitches[noteIdx]];
         const t = audioT;
         const osc = ctx.createOscillator();
@@ -2730,7 +2734,7 @@ function playMeterCompare(slideId) {
         osc.connect(g); g.connect(ctx.destination);
         osc.setPeriodicWave(getViolinWave(ctx));
         osc.frequency.setValueAtTime(freq, t);
-        const peak = isStrong ? 0.42 : 0.22;
+        const peak = level === 2 ? 0.42 : level === 1 ? 0.30 : 0.20;
         g.gain.setValueAtTime(0, t);
         g.gain.linearRampToValueAtTime(peak, t + 0.02);
         g.gain.setValueAtTime(peak, t + beat - 0.06);

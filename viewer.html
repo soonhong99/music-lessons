@@ -2549,6 +2549,7 @@ function buildTimeSignature(s, meta, slideId) {
   const timeSigStr = `${s.top}/${s.bottom}`;
   const dotIds  = Array.from({ length: beatCount }, (_, i) => `${slideId}-tsdot-${i}`);
   const dotsHtml = dotIds.map(id => `<span class="beat-dot" id="${id}"></span>`).join('');
+  const yt = s.youtube;
 
   const el = document.createElement('div');
   el.className = 'slide';
@@ -2575,7 +2576,19 @@ function buildTimeSignature(s, meta, slideId) {
         <button class="btn btn-${cl}" id="${btnId}" onclick="playTimeSignatureDemo('${slideId}')"
           style="font-size:13px;padding:8px 22px;align-self:flex-start;">▶ 들어보기</button>
       </div>
-    </div>`;
+    </div>
+    ${yt ? `
+      <div class="yt-wrap" style="margin-top:6px;">
+        <div class="yt-title">🎧 ${yt.title}</div>
+        <div class="yt-frame-wrap">
+          <iframe class="yt-frame"
+            src="https://www.youtube-nocookie.com/embed/${yt.video_id}?rel=0&modestbranding=1"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowfullscreen></iframe>
+        </div>
+        <a class="yt-link" href="https://www.youtube.com/watch?v=${yt.video_id}" target="_blank" rel="noopener noreferrer">▶ YouTube에서 크게 보기</a>
+      </div>
+    ` : ''}`;
 
   el._tsigState = { btnId, statusId, dotIds, timeSigStr };
   queueVexRender(() => renderVexTimeSignature(slideId + '-vex', color, timeSigStr, beatCount));

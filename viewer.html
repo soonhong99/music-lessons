@@ -921,6 +921,13 @@ svg.wedge { display: block; }
 .rest-card.ca .beat-dot.done  { background: var(--ca-border); }
 .rest-card.cb .beat-dot.active { background: var(--cb); transform: scale(1.35); }
 .rest-card.cb .beat-dot.done  { background: var(--cb-border); }
+.beat-dot.strong { width: 20px; height: 20px; border: 2px solid #999; }
+
+/* ── METER COMPARE SLIDE ── */
+.meter-row { padding: 8px 4px; border-radius: 10px; transition: background 0.25s; }
+.meter-row-label { font-family: 'Jua', sans-serif; font-size: 14px; margin-bottom: 5px; }
+.meter-row-feel  { font-size: 11px; color: var(--text-mid); font-weight: normal; }
+.meter-row.active-row { background: white; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
 .rest-note-compare {
   font-size: 11px; color: var(--text-mid); background: white;
   border-radius: 8px; padding: 3px 8px; align-self: flex-start;
@@ -2446,7 +2453,7 @@ function playNoteValueDemo(slideId) {
 }
 
 /* ── VEXFLOW: 4/4 TIME SIGNATURE ── */
-function renderVexTimeSignature(id, color) {
+function renderVexTimeSignature(id, color, timeSigStr, beatCount) {
   const container = document.getElementById(id);
   if (!container) return;
 
@@ -2460,12 +2467,12 @@ function renderVexTimeSignature(id, color) {
 
   const stave = new Stave(8, 5, 195);
   stave.addClef('treble');
-  stave.addTimeSignature('4/4');
+  stave.addTimeSignature(timeSigStr);
   ctx.setFillStyle(color); ctx.setStrokeStyle(color);
   stave.setContext(ctx).draw();
 
-  const notes = ['c/4', 'c/4', 'c/4', 'c/4'].map(k => new StaveNote({ keys: [k], duration: 'q' }));
-  const voice = new Voice({ num_beats: 4, beat_value: 4 }).addTickables(notes);
+  const notes = Array.from({ length: beatCount }, () => new StaveNote({ keys: ['c/4'], duration: 'q' }));
+  const voice = new Voice({ num_beats: beatCount, beat_value: 4 }).addTickables(notes);
   new Formatter().joinVoices([voice]).format([voice], 110);
   voice.draw(ctx, stave);
 }
@@ -2532,13 +2539,15 @@ function buildCommonTime(s, meta, slideId) {
   return el;
 }
 
-/* ── BUILD TIME SIGNATURE SLIDE (4/4) ── */
+/* ── BUILD TIME SIGNATURE SLIDE (n/4) ── */
 function buildTimeSignature(s, meta, slideId) {
   const cl      = s.color === 'a' ? 'ca' : 'cb';
   const color   = s.color === 'a' ? meta.color_a : meta.color_b;
   const btnId   = slideId + '-tsbtn';
   const statusId= slideId + '-tsst';
-  const dotIds  = [0, 1, 2, 3].map(i => `${slideId}-tsdot-${i}`);
+  const beatCount = parseInt(s.top, 10);
+  const timeSigStr = `${s.top}/${s.bottom}`;
+  const dotIds  = Array.from({ length: beatCount }, (_, i) => `${slideId}-tsdot-${i}`);
   const dotsHtml = dotIds.map(id => `<span class="beat-dot" id="${id}"></span>`).join('');
 
   const el = document.createElement('div');
@@ -2562,14 +2571,14 @@ function buildTimeSignature(s, meta, slideId) {
     <div class="rest-demo-wrap">
       <div style="display:flex;flex-direction:column;gap:5px;min-width:0;flex:1;">
         <div class="beat-dots" style="margin-bottom:2px;">${dotsHtml}</div>
-        <div class="rest-status" id="${statusId}">버튼을 눌러서 4박자를 세어봐요!</div>
+        <div class="rest-status" id="${statusId}">버튼을 눌러서 ${beatCount}박자를 세어봐요!</div>
         <button class="btn btn-${cl}" id="${btnId}" onclick="playTimeSignatureDemo('${slideId}')"
           style="font-size:13px;padding:8px 22px;align-self:flex-start;">▶ 들어보기</button>
       </div>
     </div>`;
 
-  el._tsigState = { btnId, statusId, dotIds };
-  queueVexRender(() => renderVexTimeSignature(slideId + '-vex', color));
+  el._tsigState = { btnId, statusId, dotIds, timeSigStr };
+  queueVexRender(() => renderVexTimeSignature(slideId + '-vex', color, timeSigStr, beatCount));
   return el;
 }
 
@@ -2577,7 +2586,7 @@ function buildTimeSignature(s, meta, slideId) {
 function playTimeSignatureDemo(slideId) {
   const el = slideEls.find(e => e.id === slideId);
   if (!el || !el._tsigState) return;
-  const { btnId, statusId, dotIds } = el._tsigState;
+  const { btnId, statusId, dotIds, timeSigStr } = el._tsigState;
 
   const btn = document.getElementById(btnId);
   const statusEl = document.getElementById(statusId);
@@ -2587,7 +2596,7 @@ function playTimeSignatureDemo(slideId) {
   const ctx = getAudioCtx();
   const beat = 0.5;
   const t0 = ctx.currentTime;
-  const labels = ['하나!', '둘', '셋', '넷'];
+  const labels = ['하나!', '둘', '셋', '넷', '다섯', '여섯'];
 
   dotIds.forEach((id, i) => {
     const t = t0 + i * beat;
@@ -2615,13 +2624,133 @@ function playTimeSignatureDemo(slideId) {
   const totalMs = dotIds.length * beat * 1000;
   setTimeout(() => {
     if (btn) { btn.disabled = false; btn.textContent = '▶ 다시 들어보기'; }
-    if (statusEl) statusEl.textContent = '한 마디에 4박자! 이게 4/4 박자표예요.';
+    if (statusEl) statusEl.textContent = `한 마디에 ${dotIds.length}박자! 이게 ${timeSigStr} 박자표예요.`;
     dotIds.forEach(id => { const d = document.getElementById(id); if (d) { d.classList.remove('active'); d.classList.add('done'); } });
     setTimeout(() => {
       dotIds.forEach(id => { const d = document.getElementById(id); if (d) d.classList.remove('active', 'done'); });
-      if (statusEl) statusEl.textContent = '버튼을 눌러서 4박자를 세어봐요!';
+      if (statusEl) statusEl.textContent = `버튼을 눌러서 ${dotIds.length}박자를 세어봐요!`;
     }, 2200);
   }, totalMs + 300);
+}
+
+/* ── BUILD METER COMPARE SLIDE (같은 멜로디, 다른 박자) ── */
+function buildMeterCompare(s, meta, slideId) {
+  const cl      = clsOf(s.color);
+  const btnId   = slideId + '-mcbtn';
+  const statusId= slideId + '-mcst';
+
+  const rowsHtml = s.meters.map((m, mi) => {
+    const dotIds = Array.from({ length: m.beats }, (_, i) => `${slideId}-mc-${mi}-${i}`);
+    const dotsHtml = dotIds.map((id, i) =>
+      `<span class="beat-dot${i === 0 ? ' strong' : ''}" id="${id}"></span>`
+    ).join('');
+    return `
+      <div class="meter-row" id="${slideId}-row-${mi}">
+        <div class="meter-row-label">${m.label} <span class="meter-row-feel">(${m.feel})</span></div>
+        <div class="beat-dots">${dotsHtml}</div>
+      </div>`;
+  }).join('');
+
+  const el = document.createElement('div');
+  el.className = 'slide';
+  el.innerHTML = `
+    <h1 class="slide-title" style="font-size:clamp(15px,2.2vw,21px);">🎼 ${s.title}</h1>
+    <p class="slide-subtitle">${s.subtitle}</p>
+    <div class="rest-card ${cl}" style="max-width:480px;">
+      ${rowsHtml}
+    </div>
+    <div class="rest-demo-wrap">
+      <div style="display:flex;flex-direction:column;gap:5px;min-width:0;flex:1;">
+        <div class="rest-status" id="${statusId}">버튼을 눌러서 세 박자를 비교해봐요!</div>
+        <button class="btn btn-${cl}" id="${btnId}" onclick="playMeterCompare('${slideId}')"
+          style="font-size:13px;padding:8px 22px;align-self:flex-start;">▶ 들어보기</button>
+      </div>
+    </div>`;
+
+  el._meterState = { meters: s.meters, btnId, statusId };
+  return el;
+}
+
+/* ── PLAY METER COMPARE DEMO ── */
+function playMeterCompare(slideId) {
+  const el = slideEls.find(e => e.id === slideId);
+  if (!el || !el._meterState) return;
+  const { meters, btnId, statusId } = el._meterState;
+
+  const btn = document.getElementById(btnId);
+  const statusEl = document.getElementById(statusId);
+  if (btn) { btn.disabled = true; btn.textContent = '재생 중...'; }
+  meters.forEach((_, mi) => {
+    const row = document.getElementById(`${slideId}-row-${mi}`);
+    if (row) row.classList.remove('active-row');
+  });
+
+  const ctx = getAudioCtx();
+  const beat = 0.42;
+  const rowGapMs = 500;
+  const pitches = ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4', 'C5'];
+
+  let audioT = ctx.currentTime;
+  let visualMs = 0;
+
+  meters.forEach((m, mi) => {
+    const dotIds = Array.from({ length: m.beats }, (_, i) => `${slideId}-mc-${mi}-${i}`);
+    const rowStartMs = visualMs;
+    setTimeout(() => {
+      meters.forEach((_, j) => {
+        const r = document.getElementById(`${slideId}-row-${j}`);
+        if (r) r.classList.remove('active-row');
+      });
+      const row = document.getElementById(`${slideId}-row-${mi}`);
+      if (row) row.classList.add('active-row');
+      if (statusEl) statusEl.textContent = `${m.label} — ${m.feel}`;
+    }, rowStartMs);
+
+    for (let rep = 0; rep < 2; rep++) {
+      for (let b = 0; b < m.beats; b++) {
+        const isStrong = b === 0;
+        const noteIdx = (rep * m.beats + b) % pitches.length;
+        const freq = NOTE_FREQ[pitches[noteIdx]];
+        const t = audioT;
+        const osc = ctx.createOscillator();
+        const g = ctx.createGain();
+        osc.connect(g); g.connect(ctx.destination);
+        osc.setPeriodicWave(getViolinWave(ctx));
+        osc.frequency.setValueAtTime(freq, t);
+        const peak = isStrong ? 0.42 : 0.22;
+        g.gain.setValueAtTime(0, t);
+        g.gain.linearRampToValueAtTime(peak, t + 0.02);
+        g.gain.setValueAtTime(peak, t + beat - 0.06);
+        g.gain.linearRampToValueAtTime(0, t + beat);
+        osc.start(t); osc.stop(t + beat + 0.01);
+
+        const dId = dotIds[b];
+        const dMs = visualMs;
+        setTimeout(() => {
+          const d = document.getElementById(dId);
+          if (d) d.classList.add('active');
+          setTimeout(() => { if (d) d.classList.remove('active'); }, beat * 1000 * 0.85);
+        }, dMs);
+
+        audioT += beat;
+        visualMs += beat * 1000;
+      }
+    }
+    visualMs += rowGapMs;
+    audioT += rowGapMs / 1000;
+  });
+
+  setTimeout(() => {
+    if (btn) { btn.disabled = false; btn.textContent = '▶ 다시 들어보기'; }
+    if (statusEl) statusEl.textContent = '강박(센박) 위치가 박자마다 다르게 느껴졌나요?';
+    meters.forEach((_, j) => {
+      const r = document.getElementById(`${slideId}-row-${j}`);
+      if (r) r.classList.remove('active-row');
+    });
+    setTimeout(() => {
+      if (statusEl) statusEl.textContent = '버튼을 눌러서 세 박자를 비교해봐요!';
+    }, 2200);
+  }, visualMs + 200);
 }
 
 /* ── BUILD SONG GUIDE SLIDE (May Song 연주 가이드) ── */
@@ -2975,6 +3104,7 @@ function loadLesson(data) {
     else if (s.type === 'note_value')      el = buildNoteValue(s, meta, sid);
     else if (s.type === 'time_signature')  el = buildTimeSignature(s, meta, sid);
     else if (s.type === 'common_time')     el = buildCommonTime(s, meta, sid);
+    else if (s.type === 'meter_compare')   el = buildMeterCompare(s, meta, sid);
     else if (s.type === 'song_guide')      el = buildSongGuide(s, meta, sid);
     else return;
     el.id = sid;

@@ -977,6 +977,12 @@ svg.wedge { display: block; }
 }
 .ornament-effects { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 2px; }
 .effect-tag { font-size: 10px; padding: 2px 8px; border-radius: 12px; background: white; }
+.ornament-usage-note {
+  font-size: 11px; color: var(--text-mid);
+  background: #F8F6F3; border: 1px solid #E8E4DE;
+  border-radius: 8px; padding: 5px 10px; line-height: 1.6; margin-top: 2px;
+}
+.ornament-usage-note b { color: var(--text); }
 .ornament-card.ca .effect-tag { color: var(--ca-dark); border: 1px solid var(--ca-border); }
 .ornament-card.cb .effect-tag { color: var(--cb-dark); border: 1px solid var(--cb-border); }
 .orn-vis-wrap {
@@ -2061,6 +2067,7 @@ function buildOrnament(s, meta, slideId) {
           <div class="ornament-korean">${s.korean}</div>
           <div class="ornament-analogy-tag">${s.emoji} ${s.analogy}</div>
           <div class="ornament-effects">${effectsHtml}</div>
+          ${s.usage ? `<div class="ornament-usage-note">${s.usage}</div>` : ''}
         </div>
       </div>
     </div>

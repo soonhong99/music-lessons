@@ -1991,7 +1991,10 @@ function renderVexFermata(id, color) {
   container.innerHTML = '';
   const { Renderer, Stave, StaveNote, Articulation, Voice, Formatter } = Vex.Flow;
 
-  const W = 110, H = 90;
+  // Measured via getBBox: content reaches ~y=125 with a 90px-tall canvas
+  // (clef descender + note stem run well below the stave), so the bottom
+  // was being clipped. Give it real headroom.
+  const W = 110, H = 140;
   const renderer = new Renderer(container, Renderer.Backends.SVG);
   renderer.resize(W, H);
   const ctx = renderer.getContext();
@@ -2015,7 +2018,8 @@ function renderVexBreath(id, color) {
   container.innerHTML = '';
   const { Renderer, Stave, StaveNote, Articulation, Voice, Formatter } = Vex.Flow;
 
-  const W = 130, H = 90;
+  // Same clipping issue as renderVexFermata — needs the taller canvas.
+  const W = 130, H = 140;
   const renderer = new Renderer(container, Renderer.Backends.SVG);
   renderer.resize(W, H);
   const ctx = renderer.getContext();

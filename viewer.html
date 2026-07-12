@@ -962,7 +962,7 @@ svg.wedge { display: block; }
 .staff-ornament-wrap { flex-shrink: 0; }
 .staff-ornament {
   background: white; border: 1px solid #DDD; border-radius: 8px;
-  padding: 4px 6px; width: 110px; max-width: 100%;
+  padding: 4px 6px; width: auto; max-width: 100%;
   display: flex; align-items: center; justify-content: center;
 }
 .ornament-detail { flex: 1; display: flex; flex-direction: column; gap: 4px; min-width: 200px; }
@@ -1284,18 +1284,21 @@ function wedgeSVG(type, color, w=88, h=28) {
    SLIDE BUILDERS
 ══════════════════════════════ */
 
-function buildIntro(s, meta) {
+function buildIntro(s, meta, slideId) {
   const el = document.createElement('div');
   el.className = 'slide';
   const cA = meta.color_a, cB = meta.color_b;
+  const vexSymbols = ['fermata', 'breath'];
   el.innerHTML = `
     <span class="character">${s.emoji}</span>
     <h1 class="slide-title">${s.title}</h1>
     <p class="slide-subtitle">${s.subtitle}</p>
     <div class="concept-cards">
-      ${s.concepts.map(c => `
+      ${s.concepts.map((c, i) => `
         <div class="concept-card ${clsOf(c.color)}">
-          <div style="margin:4px 0">${wedgeSVG(c.symbol, c.color==='a'?cA:cB, 80, 30)}</div>
+          <div style="margin:4px 0">${vexSymbols.includes(c.symbol)
+            ? `<div id="${slideId}-cvex-${i}"></div>`
+            : wedgeSVG(c.symbol, c.color==='a'?cA:cB, 80, 30)}</div>
           <div class="c-name">${c.name}</div>
           <div class="c-desc">${c.description}</div>
         </div>
@@ -1303,6 +1306,11 @@ function buildIntro(s, meta) {
     </div>
     <div class="analogy-box">${s.analogy}</div>
   `;
+  s.concepts.forEach((c, i) => {
+    const color = c.color === 'a' ? cA : cB;
+    if (c.symbol === 'fermata') queueVexRender(() => renderVexFermata(`${slideId}-cvex-${i}`, color));
+    if (c.symbol === 'breath')  queueVexRender(() => renderVexBreath(`${slideId}-cvex-${i}`, color));
+  });
   return el;
 }
 
@@ -1970,33 +1978,54 @@ function trillBadgeSVG(color) {
   </svg>`;
 }
 
-function fermataBadgeSVG(color) {
-  return `<svg viewBox="0 0 90 80" width="90" height="80" xmlns="http://www.w3.org/2000/svg">
-    <line x1="8" y1="30" x2="82" y2="30" stroke="#AAA" stroke-width="1"/>
-    <line x1="8" y1="38" x2="82" y2="38" stroke="#AAA" stroke-width="1"/>
-    <line x1="8" y1="46" x2="82" y2="46" stroke="#AAA" stroke-width="1"/>
-    <line x1="8" y1="54" x2="82" y2="54" stroke="#AAA" stroke-width="1"/>
-    <line x1="8" y1="62" x2="82" y2="62" stroke="#AAA" stroke-width="1"/>
-    <ellipse cx="45" cy="46" rx="6.5" ry="5" fill="#333"/>
-    <line x1="51" y1="44" x2="51" y2="16" stroke="#333" stroke-width="1.8"/>
-    <path d="M 33,14 A 13,13 0 0 1 59,14" stroke="${color}" stroke-width="2.5" fill="none" stroke-linecap="round"/>
-    <circle cx="46" cy="12" r="2.5" fill="${color}"/>
-  </svg>`;
+/* ── VEXFLOW: FERMATA / BREATH MARK (real engraving, not hand-drawn) ── */
+function renderVexFermata(id, color) {
+  const container = document.getElementById(id);
+  if (!container) return;
+  container.innerHTML = '';
+  const { Renderer, Stave, StaveNote, Articulation, Voice, Formatter } = Vex.Flow;
+
+  const W = 110, H = 90;
+  const renderer = new Renderer(container, Renderer.Backends.SVG);
+  renderer.resize(W, H);
+  const ctx = renderer.getContext();
+
+  const stave = new Stave(5, 28, 95);
+  stave.addClef('treble');
+  ctx.setFillStyle('#AAAAAA'); ctx.setStrokeStyle('#AAAAAA');
+  stave.setContext(ctx).draw();
+
+  ctx.setFillStyle(color); ctx.setStrokeStyle(color);
+  const note = new StaveNote({ keys: ['b/4'], duration: 'q' });
+  note.addModifier(new Articulation('a@a').setPosition(3));
+  const voice = new Voice({ num_beats: 1, beat_value: 4 }).setStrict(false).addTickables([note]);
+  new Formatter().joinVoices([voice]).format([voice], 55);
+  voice.draw(ctx, stave);
 }
 
-function breathBadgeSVG(color) {
-  return `<svg viewBox="0 0 90 80" width="90" height="80" xmlns="http://www.w3.org/2000/svg">
-    <line x1="8" y1="30" x2="82" y2="30" stroke="#AAA" stroke-width="1"/>
-    <line x1="8" y1="38" x2="82" y2="38" stroke="#AAA" stroke-width="1"/>
-    <line x1="8" y1="46" x2="82" y2="46" stroke="#AAA" stroke-width="1"/>
-    <line x1="8" y1="54" x2="82" y2="54" stroke="#AAA" stroke-width="1"/>
-    <line x1="8" y1="62" x2="82" y2="62" stroke="#AAA" stroke-width="1"/>
-    <ellipse cx="26" cy="46" rx="6" ry="4.5" fill="#333"/>
-    <line x1="32" y1="44" x2="32" y2="20" stroke="#333" stroke-width="1.8"/>
-    <path d="M 50,16 Q 57,21 50,30" stroke="${color}" stroke-width="3" fill="none" stroke-linecap="round"/>
-    <ellipse cx="68" cy="42" rx="6" ry="4.5" fill="#333"/>
-    <line x1="74" y1="40" x2="74" y2="16" stroke="#333" stroke-width="1.8"/>
-  </svg>`;
+function renderVexBreath(id, color) {
+  const container = document.getElementById(id);
+  if (!container) return;
+  container.innerHTML = '';
+  const { Renderer, Stave, StaveNote, Articulation, Voice, Formatter } = Vex.Flow;
+
+  const W = 130, H = 90;
+  const renderer = new Renderer(container, Renderer.Backends.SVG);
+  renderer.resize(W, H);
+  const ctx = renderer.getContext();
+
+  const stave = new Stave(5, 28, 115);
+  stave.addClef('treble');
+  ctx.setFillStyle('#AAAAAA'); ctx.setStrokeStyle('#AAAAAA');
+  stave.setContext(ctx).draw();
+
+  ctx.setFillStyle(color); ctx.setStrokeStyle(color);
+  const note1 = new StaveNote({ keys: ['b/4'], duration: 'q' });
+  note1.addModifier(new Articulation('a,').setPosition(3));
+  const note2 = new StaveNote({ keys: ['b/4'], duration: 'q' });
+  const voice = new Voice({ num_beats: 2, beat_value: 4 }).setStrict(false).addTickables([note1, note2]);
+  new Formatter().joinVoices([voice]).format([voice], 65);
+  voice.draw(ctx, stave);
 }
 
 /* ── ORNAMENT BUILDER ── */
@@ -2006,10 +2035,10 @@ function buildOrnament(s, meta, slideId) {
   const rId  = `orn-r-${slideId}`;
   const dotId = `orn-d-${slideId}`;
   const btnId = `orn-b-${slideId}`;
+  const isVexSymbol = s.symbol_type === 'fermata' || s.symbol_type === 'breath';
   const staffSVG = s.symbol_type === 'tremolo' ? tremoloBadgeSVG(color)
     : s.symbol_type === 'trill' ? trillBadgeSVG(color)
-    : s.symbol_type === 'fermata' ? fermataBadgeSVG(color)
-    : breathBadgeSVG(color);
+    : '';
   const staffLabel = s.symbol_type === 'tremolo' ? '음표 기둥에<br>이렇게 표시해요!'
     : s.symbol_type === 'trill' ? '음표 위에<br>이렇게 표시해요!'
     : s.symbol_type === 'fermata' ? '음표 위에<br>이렇게 표시해요!'
@@ -2023,7 +2052,7 @@ function buildOrnament(s, meta, slideId) {
     <div class="ornament-card ${cl}">
       <div class="ornament-main-row">
         <div class="staff-ornament-wrap">
-          <div class="staff-ornament">${staffSVG}</div>
+          <div class="staff-ornament">${isVexSymbol ? `<div id="${slideId}-vex"></div>` : staffSVG}</div>
           <div class="staff-mini-label">${staffLabel}</div>
         </div>
         <div class="ornament-detail">
@@ -2065,6 +2094,8 @@ function buildOrnament(s, meta, slideId) {
     ` : ''}
   `;
   el._ornState = { audioType: s.symbol_type, rId, dotId, btnId, color };
+  if (s.symbol_type === 'fermata') queueVexRender(() => renderVexFermata(slideId + '-vex', color));
+  if (s.symbol_type === 'breath')  queueVexRender(() => renderVexBreath(slideId + '-vex', color));
   return el;
 }
 
@@ -3226,7 +3257,7 @@ function loadLesson(data) {
   L.slides.forEach(s => {
     const sid = 'slide-' + idx;
     let el;
-    if      (s.type === 'intro')      el = buildIntro(s, meta);
+    if      (s.type === 'intro')      el = buildIntro(s, meta, sid);
     else if (s.type === 'experience') el = buildExperience(s, meta, sid);
     else if (s.type === 'compare')    el = buildCompare(s, meta, sid);
     else if (s.type === 'quiz')       el = buildQuiz(s, meta, sid);

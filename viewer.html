@@ -1294,7 +1294,6 @@ function buildIntro(s, meta, slideId) {
   const el = document.createElement('div');
   el.className = 'slide';
   const cA = meta.color_a, cB = meta.color_b;
-  const vexSymbols = ['fermata', 'breath'];
   el.innerHTML = `
     <span class="character">${s.emoji}</span>
     <h1 class="slide-title">${s.title}</h1>
@@ -1302,7 +1301,7 @@ function buildIntro(s, meta, slideId) {
     <div class="concept-cards">
       ${s.concepts.map((c, i) => `
         <div class="concept-card ${clsOf(c.color)}">
-          <div style="margin:4px 0">${vexSymbols.includes(c.symbol)
+          <div style="margin:4px 0">${VEX_SYMBOL_RENDERERS[c.symbol]
             ? `<div id="${slideId}-cvex-${i}"></div>`
             : wedgeSVG(c.symbol, c.color==='a'?cA:cB, 80, 30)}</div>
           <div class="c-name">${c.name}</div>
@@ -1314,8 +1313,8 @@ function buildIntro(s, meta, slideId) {
   `;
   s.concepts.forEach((c, i) => {
     const color = c.color === 'a' ? cA : cB;
-    if (c.symbol === 'fermata') queueVexRender(() => renderVexFermata(`${slideId}-cvex-${i}`, color));
-    if (c.symbol === 'breath')  queueVexRender(() => renderVexBreath(`${slideId}-cvex-${i}`, color));
+    const renderFn = VEX_SYMBOL_RENDERERS[c.symbol];
+    if (renderFn) queueVexRender(() => renderFn(`${slideId}-cvex-${i}`, color));
   });
   return el;
 }
@@ -2038,6 +2037,70 @@ function renderVexBreath(id, color) {
   voice.draw(ctx, stave);
 }
 
+/* ── VEXFLOW: TIE (붙임줄, same pitch) / SLUR (이음줄, different pitch) ── */
+function renderVexTie(id, color) {
+  const container = document.getElementById(id);
+  if (!container) return;
+  container.innerHTML = '';
+  const { Renderer, Stave, StaveNote, StaveTie, Voice, Formatter } = Vex.Flow;
+
+  const W = 130, H = 140;
+  const renderer = new Renderer(container, Renderer.Backends.SVG);
+  renderer.resize(W, H);
+  const ctx = renderer.getContext();
+
+  const stave = new Stave(5, 28, 115);
+  stave.addClef('treble');
+  ctx.setFillStyle('#AAAAAA'); ctx.setStrokeStyle('#AAAAAA');
+  stave.setContext(ctx).draw();
+
+  ctx.setFillStyle(color); ctx.setStrokeStyle(color);
+  const note1 = new StaveNote({ keys: ['b/4'], duration: 'q' });
+  const note2 = new StaveNote({ keys: ['b/4'], duration: 'q' });
+  const voice = new Voice({ num_beats: 2, beat_value: 4 }).setStrict(false).addTickables([note1, note2]);
+  new Formatter().joinVoices([voice]).format([voice], 65);
+  voice.draw(ctx, stave);
+
+  const tie = new StaveTie({ first_note: note1, last_note: note2, first_indices: [0], last_indices: [0] });
+  tie.setContext(ctx).draw();
+}
+
+function renderVexSlur(id, color) {
+  const container = document.getElementById(id);
+  if (!container) return;
+  container.innerHTML = '';
+  const { Renderer, Stave, StaveNote, Curve, Voice, Formatter } = Vex.Flow;
+
+  const W = 130, H = 140;
+  const renderer = new Renderer(container, Renderer.Backends.SVG);
+  renderer.resize(W, H);
+  const ctx = renderer.getContext();
+
+  const stave = new Stave(5, 28, 115);
+  stave.addClef('treble');
+  ctx.setFillStyle('#AAAAAA'); ctx.setStrokeStyle('#AAAAAA');
+  stave.setContext(ctx).draw();
+
+  ctx.setFillStyle(color); ctx.setStrokeStyle(color);
+  const note1 = new StaveNote({ keys: ['c/4'], duration: 'q' });
+  const note2 = new StaveNote({ keys: ['g/4'], duration: 'q' });
+  const voice = new Voice({ num_beats: 2, beat_value: 4 }).setStrict(false).addTickables([note1, note2]);
+  new Formatter().joinVoices([voice]).format([voice], 65);
+  voice.draw(ctx, stave);
+
+  const curve = new Curve(note1, note2, {});
+  curve.setContext(ctx).draw();
+}
+
+/* Symbol types rendered via VexFlow (real engraving) rather than hand-drawn
+   SVG — shared by buildIntro's concept cards and buildOrnament's detail badge. */
+const VEX_SYMBOL_RENDERERS = {
+  fermata: renderVexFermata,
+  breath: renderVexBreath,
+  tie: renderVexTie,
+  slur: renderVexSlur
+};
+
 /* ── ORNAMENT BUILDER ── */
 function buildOrnament(s, meta, slideId) {
   const cl = clsOf(s.color);
@@ -2045,14 +2108,19 @@ function buildOrnament(s, meta, slideId) {
   const rId  = `orn-r-${slideId}`;
   const dotId = `orn-d-${slideId}`;
   const btnId = `orn-b-${slideId}`;
-  const isVexSymbol = s.symbol_type === 'fermata' || s.symbol_type === 'breath';
+  const isVexSymbol = !!VEX_SYMBOL_RENDERERS[s.symbol_type];
   const staffSVG = s.symbol_type === 'tremolo' ? tremoloBadgeSVG(color)
     : s.symbol_type === 'trill' ? trillBadgeSVG(color)
     : '';
-  const staffLabel = s.symbol_type === 'tremolo' ? '음표 기둥에<br>이렇게 표시해요!'
-    : s.symbol_type === 'trill' ? '음표 위에<br>이렇게 표시해요!'
-    : s.symbol_type === 'fermata' ? '음표 위에<br>이렇게 표시해요!'
-    : '음표와 음표<br>사이에 표시해요!';
+  const staffLabelMap = {
+    tremolo: '음표 기둥에<br>이렇게 표시해요!',
+    trill: '음표 위에<br>이렇게 표시해요!',
+    fermata: '음표 위에<br>이렇게 표시해요!',
+    breath: '음표와 음표<br>사이에 표시해요!',
+    tie: '같은 높이 음<br>사이에 표시해요!',
+    slur: '다른 높이 음들<br>위에 표시해요!'
+  };
+  const staffLabel = staffLabelMap[s.symbol_type] || '';
   const effectsHtml = (s.effect_words || []).map(w => `<span class="effect-tag">${w}</span>`).join('');
   const yt = s.youtube;
   const el = document.createElement('div');
@@ -2105,8 +2173,8 @@ function buildOrnament(s, meta, slideId) {
     ` : ''}
   `;
   el._ornState = { audioType: s.symbol_type, rId, dotId, btnId, color };
-  if (s.symbol_type === 'fermata') queueVexRender(() => renderVexFermata(slideId + '-vex', color));
-  if (s.symbol_type === 'breath')  queueVexRender(() => renderVexBreath(slideId + '-vex', color));
+  const vexRenderFn = VEX_SYMBOL_RENDERERS[s.symbol_type];
+  if (vexRenderFn) queueVexRender(() => vexRenderFn(slideId + '-vex', color));
   return el;
 }
 
@@ -2210,7 +2278,7 @@ function playOrnament(slideId) {
       const d = document.getElementById(dotId); if (d) d.style.transform = 'scale(1)';
     }, totalMs + 200);
 
-  } else {
+  } else if (audioType === 'breath') {
     // breath mark: two phrases back-to-back, then the same two notes
     // with a clear breathing gap between them.
     const freqs = [293.66, 349.23];
@@ -2256,6 +2324,81 @@ function playOrnament(slideId) {
     }, (pauseStart + noteLen + breathGap) * 1000);
 
     const totalMs = (pauseStart + noteLen + breathGap + noteLen) * 1000;
+    setTimeout(() => {
+      if (btn) { btn.disabled = false; btn.textContent = '▶ 다시 들어보기'; }
+      clearRipples(rId);
+      const d = document.getElementById(dotId); if (d) d.style.transform = 'scale(1)';
+    }, totalMs + 200);
+
+  } else if (audioType === 'tie') {
+    // same pitch played twice separately, then tied into one long note.
+    const freq = NOTE_FREQ['B4'];
+    const noteLen = 0.4, gap = 0.04;
+    const t0 = ctx.currentTime;
+
+    function schedNote(startT, dur, gain) {
+      const osc = ctx.createOscillator(), g = ctx.createGain();
+      osc.connect(g); g.connect(ctx.destination);
+      osc.setPeriodicWave(getViolinWave(ctx));
+      osc.frequency.setValueAtTime(freq, startT);
+      g.gain.setValueAtTime(0, startT);
+      g.gain.linearRampToValueAtTime(gain, startT + 0.03);
+      g.gain.setValueAtTime(gain, startT + dur - 0.05);
+      g.gain.linearRampToValueAtTime(0, startT + dur);
+      osc.start(startT); osc.stop(startT + dur + 0.01);
+    }
+
+    // separate: two clearly re-attacked notes
+    schedNote(t0, noteLen, 0.3);
+    schedNote(t0 + noteLen + gap, noteLen, 0.3);
+    setTimeout(() => { animateRipples(rId, '#AAAAAA', 0.5, 12, 34); const d=document.getElementById(dotId); if(d) d.style.transform='scale(1.3)'; }, 0);
+    setTimeout(() => { animateRipples(rId, '#AAAAAA', 0.5, 12, 34); const d=document.getElementById(dotId); if(d) d.style.transform='scale(1.3)'; }, (noteLen + gap) * 1000);
+
+    // tied: one continuous note, sum of both durations, no re-attack
+    const tieStart = (noteLen + gap) * 2 + 0.4;
+    schedNote(t0 + tieStart, noteLen * 2, 0.34);
+    setTimeout(() => { animateRipples(rId, color, 0.5, 16, 48); const d=document.getElementById(dotId); if(d) d.style.transform='scale(1.7)'; }, tieStart * 1000);
+
+    const totalMs = (tieStart + noteLen * 2) * 1000;
+    setTimeout(() => {
+      if (btn) { btn.disabled = false; btn.textContent = '▶ 다시 들어보기'; }
+      clearRipples(rId);
+      const d = document.getElementById(dotId); if (d) d.style.transform = 'scale(1)';
+    }, totalMs + 200);
+
+  } else if (audioType === 'slur') {
+    // different pitches played separately (each re-attacked), then slurred
+    // into one smooth legato line (no re-attack between them).
+    const freqs = [NOTE_FREQ['C4'], NOTE_FREQ['G4']];
+    const noteLen = 0.4, gap = 0.05;
+    const t0 = ctx.currentTime;
+
+    function schedNote(startT, freq, dur, gain, attack) {
+      const osc = ctx.createOscillator(), g = ctx.createGain();
+      osc.connect(g); g.connect(ctx.destination);
+      osc.setPeriodicWave(getViolinWave(ctx));
+      osc.frequency.setValueAtTime(freq, startT);
+      g.gain.setValueAtTime(0, startT);
+      g.gain.linearRampToValueAtTime(gain, startT + attack);
+      g.gain.setValueAtTime(gain, startT + dur - 0.05);
+      g.gain.linearRampToValueAtTime(0, startT + dur);
+      osc.start(startT); osc.stop(startT + dur + 0.01);
+    }
+
+    // separate bows: each note has its own clear attack
+    schedNote(t0, freqs[0], noteLen, 0.3, 0.03);
+    schedNote(t0 + noteLen + gap, freqs[1], noteLen, 0.3, 0.03);
+    setTimeout(() => { animateRipples(rId, '#AAAAAA', 0.5, 12, 34); const d=document.getElementById(dotId); if(d) d.style.transform='scale(1.3)'; }, 0);
+    setTimeout(() => { animateRipples(rId, '#AAAAAA', 0.5, 12, 34); const d=document.getElementById(dotId); if(d) d.style.transform='scale(1.3)'; }, (noteLen + gap) * 1000);
+
+    // one bow (slur): second note has almost no attack, no gap — smooth transition
+    const slurStart = (noteLen + gap) * 2 + 0.4;
+    schedNote(t0 + slurStart, freqs[0], noteLen, 0.34, 0.03);
+    schedNote(t0 + slurStart + noteLen, freqs[1], noteLen, 0.34, 0.12);
+    setTimeout(() => { animateRipples(rId, color, 0.5, 14, 40); const d=document.getElementById(dotId); if(d) d.style.transform='scale(1.5)'; }, slurStart * 1000);
+    setTimeout(() => { animateRipples(rId, color, 0.5, 14, 40); const d=document.getElementById(dotId); if(d) d.style.transform='scale(1.6)'; }, (slurStart + noteLen) * 1000);
+
+    const totalMs = (slurStart + noteLen * 2) * 1000;
     setTimeout(() => {
       if (btn) { btn.disabled = false; btn.textContent = '▶ 다시 들어보기'; }
       clearRipples(rId);

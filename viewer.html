@@ -556,6 +556,21 @@ svg.wedge { display: block; }
 .feature-title { font-family: 'Jua', sans-serif; font-size: 14px; color: var(--ca-dark); }
 .feature-desc  { font-size: 12px; color: var(--text-mid); line-height: 1.6; white-space: pre-line; }
 
+/* ── DUEL (헷갈리는 기호 나란히 비교) ── */
+.duel-row { display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 8px; }
+.duel-side { display: flex; flex-direction: column; align-items: center; gap: 3px; flex: 1; min-width: 0; }
+.duel-badge {
+  background: white; border: 1px solid #DDD; border-radius: 8px;
+  width: 100%; max-width: 150px; min-height: 90px;
+  display: flex; align-items: center; justify-content: center; overflow: hidden;
+}
+/* Same VexFlow-inline-style issue as elsewhere — !important forces the
+   svg to scale to the badge instead of staying at its native px size. */
+.duel-badge svg { display: block; width: 100% !important; height: auto !important; }
+.duel-vs { font-family: 'Jua', sans-serif; font-size: 15px; color: var(--text-mid); flex-shrink: 0; }
+.duel-label { font-family: 'Jua', sans-serif; font-size: 13px; text-align: center; }
+.duel-sublabel { font-size: 10px; color: var(--text-mid); text-align: center; }
+
 /* ── COMPOSER ── */
 .composer-card {
   display: flex;
@@ -1176,6 +1191,12 @@ let currentIdx = 0;
 let totalSlides = 0;
 let audioCtx = null;
 let quizState = { current: 0, score: 0, answered: false };
+// Cumulative totals across ALL quiz slides in the current lesson — a lesson
+// can contain multiple quiz slides (e.g. per-category mini-quizzes plus a
+// final comprehensive test); quizState itself resets on each quiz slide
+// arrival, so the result screen must read from these instead.
+let cumulativeScore = 0;
+let cumulativeTotal = 0;
 const slideEls = [];
 const NOTE_FREQ = {
   C4:261.63, D4:293.66, E4:329.63, F4:349.23,
@@ -1513,6 +1534,58 @@ function buildFeatures(s, meta) {
     </div>
     ${s.note ? `<div class="analogy-box">${s.note}</div>` : ''}
   `;
+  return el;
+}
+
+/* ── DUEL BUILDER (헷갈리는 기호 나란히 비교) ──
+   Renders two symbols side-by-side for direct visual contrast. Each side
+   can be a VexFlow symbol_type (VEX_SYMBOL_RENDERERS), a rest_type
+   (renderVexRest), or a wedge_type (hand-drawn SVG via wedgeSVG, rendered
+   synchronously since it needs no VexFlow queueing). */
+function buildDuel(s, meta, slideId) {
+  const cl = clsOf(s.color || 'a');
+
+  function badgeHtml(side, idx) {
+    if (side.wedge_type) {
+      const color = side.color === 'b' ? meta.color_b : meta.color_a;
+      return wedgeSVG(side.wedge_type, color, 70, 40);
+    }
+    return `<div id="${slideId}-duel-${idx}"></div>`;
+  }
+
+  const el = document.createElement('div');
+  el.className = 'slide';
+  el.innerHTML = `
+    <h1 class="slide-title" style="font-size:clamp(15px,2.2vw,21px);">⚔️ ${s.title}</h1>
+    <p class="slide-subtitle">${s.subtitle}</p>
+    <div class="rest-card ${cl}" style="max-width:520px;">
+      <div class="duel-row">
+        <div class="duel-side">
+          <div class="duel-badge">${badgeHtml(s.left, 0)}</div>
+          <div class="duel-label">${s.left.label}</div>
+          <div class="duel-sublabel">${s.left.sublabel}</div>
+        </div>
+        <div class="duel-vs">VS</div>
+        <div class="duel-side">
+          <div class="duel-badge">${badgeHtml(s.right, 1)}</div>
+          <div class="duel-label">${s.right.label}</div>
+          <div class="duel-sublabel">${s.right.sublabel}</div>
+        </div>
+      </div>
+      <div class="repeat-rule-note">💡 ${s.tip}</div>
+    </div>`;
+
+  [s.left, s.right].forEach((side, idx) => {
+    if (side.wedge_type) return;
+    const containerId = `${slideId}-duel-${idx}`;
+    const color = side.color === 'b' ? meta.color_b : meta.color_a;
+    if (side.symbol_type && VEX_SYMBOL_RENDERERS[side.symbol_type]) {
+      queueVexRender(() => VEX_SYMBOL_RENDERERS[side.symbol_type](containerId, color));
+    } else if (side.rest_type) {
+      queueVexRender(() => renderVexRest(containerId, side.rest_type, color));
+    }
+  });
+
   return el;
 }
 
@@ -3303,11 +3376,13 @@ function answerQuestion(slideId, chosen, btn) {
   const q = el._quizData[quizState.current];
   el.querySelectorAll('.quiz-opt').forEach(b => b.disabled = true);
   const resEl = el.querySelector(`#qz-res-${slideId}`);
+  cumulativeTotal++;
   if (chosen === q.answer) {
     btn.classList.add('correct');
     resEl.textContent = '🎉 맞았어요! 아주 잘했어요!';
     resEl.className = 'quiz-result ok';
     quizState.score++;
+    cumulativeScore++;
   } else {
     btn.classList.add('wrong');
     el.querySelectorAll('.quiz-opt')[q.answer].classList.add('correct');
@@ -3456,8 +3531,11 @@ function updateNav() {
 }
 
 function updateResult() {
-  const total = L.slides.find(s=>s.type==='quiz')?.questions.length || 4;
-  const score = quizState.score;
+  // cumulativeTotal covers every question answered across ALL quiz slides
+  // in this lesson (a lesson may have several — e.g. per-category
+  // mini-quizzes plus a final comprehensive test), not just the first one.
+  const total = cumulativeTotal || L.slides.find(s=>s.type==='quiz')?.questions.length || 4;
+  const score = cumulativeScore;
   const idx = Math.round((score / total) * 4);
   const chars = ['😢','🙂','😊','😄','🌟'];
   const msgs  = ['괜찮아요! 다시 공부해봐요.','조금 더 연습해봐요!','잘했어요!','훌륭해요! 아주 잘했어요!','완벽해요! 음악 천재! 🎵'];
@@ -3472,6 +3550,8 @@ function updateResult() {
 
 function restart() {
   quizState = { current: 0, score: 0, answered: false };
+  cumulativeScore = 0;
+  cumulativeTotal = 0;
   const curr = slideEls[currentIdx];
   curr.classList.remove('active');
   currentIdx = 0;
@@ -3483,6 +3563,9 @@ function restart() {
 function loadLesson(data) {
   L = data;
   const meta = L.meta;
+  quizState = { current: 0, score: 0, answered: false };
+  cumulativeScore = 0;
+  cumulativeTotal = 0;
 
   // apply color variables
   document.documentElement.style.setProperty('--ca', meta.color_a);
@@ -3528,6 +3611,7 @@ function loadLesson(data) {
     else if (s.type === 'time_signature')  el = buildTimeSignature(s, meta, sid);
     else if (s.type === 'common_time')     el = buildCommonTime(s, meta, sid);
     else if (s.type === 'meter_compare')   el = buildMeterCompare(s, meta, sid);
+    else if (s.type === 'duel')            el = buildDuel(s, meta, sid);
     else if (s.type === 'song_guide')      el = buildSongGuide(s, meta, sid);
     else return;
     el.id = sid;

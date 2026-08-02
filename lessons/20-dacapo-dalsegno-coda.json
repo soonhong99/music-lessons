@@ -1,0 +1,159 @@
+{
+  "meta": {
+    "id": "20-dacapo-dalsegno-coda",
+    "title": "다카포·달세뇨·코다를 배워요!",
+    "subject": "음악",
+    "grade": "초등 1학년",
+    "color_a": "#8A4B2E",
+    "color_b": "#2E6B6B",
+    "color_a_light": "#F4E9E0",
+    "color_b_light": "#E0F0F0",
+    "color_a_dark": "#4A2410",
+    "color_b_dark": "#123838",
+    "color_a_border": "#DCB89C",
+    "color_b_border": "#9CD4D4",
+    "result_message": "이제 다카포와 달세뇨·코다를 보고 악보를 어떻게 되돌아가고 건너뛰는지 읽을 수 있어요!"
+  },
+  "slides": [
+    {
+      "type": "review",
+      "title": "지난 시간에 배웠어요!",
+      "subtitle": "스타카토와 테누토, 기억하나요?",
+      "era": "스타카토 · 테누토",
+      "points": [
+        { "text": "스타카토(점) — 원래 길이보다 짧게 끊어서 연주해요" },
+        { "text": "테누토(선) — 원래 길이를 끝까지 꽉 채워서 연주해요" }
+      ],
+      "composers": [
+        { "symbol_type": "staccato", "name": "스타카토 — 짧게" },
+        { "symbol_type": "tenuto", "name": "테누토 — 채워서" }
+      ],
+      "next_text": "오늘은 악보를 다시 되돌아가거나 건너뛰게 하는 기호를 배워요! →"
+    },
+    {
+      "type": "intro",
+      "emoji": "🗺️",
+      "title": "다카포·달세뇨·코다를 배워요!",
+      "subtitle": "악보에는 '길찾기' 기호도 있어요!",
+      "concepts": [
+        {
+          "name": "다카포(D.C.) — 처음으로!",
+          "symbol": "dacapo",
+          "description": "'D.C. al Fine'을 만나면 악보 맨 처음으로 돌아가서, 'Fine'이라고 써있는 곳까지 다시 연주해요.",
+          "color": "a"
+        },
+        {
+          "name": "달세뇨·코다 — 표시로! 건너뛰기!",
+          "symbol": "segnocoda",
+          "description": "'D.S. al Coda'를 만나면 세뇨 표시가 있는 곳으로 돌아가고, 'To Coda'에서 코다 부분으로 건너뛰어요.",
+          "color": "b"
+        }
+      ],
+      "analogy": "책을 읽다가 '5쪽으로 다시 가서 읽어!'라고 적혀 있으면 다시 5쪽으로 돌아가죠? 다카포와 달세뇨도 똑같아요. 악보에게 '어디로 돌아갈지, 어디를 건너뛸지' 알려주는 길찾기 표지판이에요!"
+    },
+    {
+      "type": "ornament",
+      "name": "다카포",
+      "english": "D.C. al Fine",
+      "symbol_type": "dacapo",
+      "korean": "'Da Capo al Fine'의 줄임말로, 처음(Capo)부터 다시 연주해서 'Fine'까지 가라는 뜻이에요",
+      "emoji": "🔁",
+      "analogy": "이야기책을 다 읽고 '처음부터 다시 읽어봐!'라고 하는 것처럼, 악보 처음으로 돌아가요",
+      "effect_words": ["처음으로", "되돌아가기", "Fine에서끝"],
+      "color": "a",
+      "listen_hint": "1-2-3번째 마디를 순서대로 연주하다가, 3번째 마디 끝에서 'D.C. al Fine'을 만나면 다시 처음(1번째 마디)으로 돌아가요. 그리고 'Fine'이 적힌 곳(1번째 마디 끝)에서 연주를 마쳐요!",
+      "usage": "<b>왜 쓰나요?</b> 똑같은 부분을 악보에 두 번 그리지 않고, 한 번만 그려서 다시 연주하라고 알려주기 위해서예요. 악보가 짧고 깔끔해져요.<br><b>언제 쓰이나요?</b> 악보의 맨 끝에 'D.C. al Fine'이라고 적혀 있으면, 반드시 악보 맨 처음(1마디)으로 돌아가서 'Fine'이라고 적힌 곳까지 연주해요."
+    },
+    {
+      "type": "ornament",
+      "name": "달세뇨 · 코다",
+      "english": "D.S. al Coda",
+      "symbol_type": "segnocoda",
+      "korean": "'Dal Segno al Coda'의 줄임말로, 세뇨 표시로 돌아가서 연주하다가 코다로 건너뛰라는 뜻이에요",
+      "emoji": "🧭",
+      "analogy": "지도 위의 깃발(세뇨 표시)로 되돌아갔다가, 다리를 건너뛰어 지름길(코다)로 가는 것과 비슷해요",
+      "effect_words": ["표시로되돌아가기", "건너뛰기", "코다로점프"],
+      "color": "b",
+      "listen_hint": "1번째 마디(세뇨 표시)부터 3번째 마디까지 연주하다가 'D.S. al Coda'를 만나면 다시 세뇨 표시가 있는 1번째 마디로 돌아가요. 그리고 'To Coda'를 만나면 2번째 마디를 건너뛰고 곧바로 코다 부분으로 점프해서 끝나요!",
+      "usage": "<b>왜 쓰나요?</b> 반복은 하고 싶지만, 반복할 때는 마지막 부분을 다르게 끝내고 싶을 때 써요. 코다는 '꼬리'라는 뜻으로, 곡의 특별한 마무리 부분이에요.<br><b>언제 쓰이나요?</b> 세뇨 표시가 있는 곳으로 돌아갔다가, 'To Coda'라고 적힌 곳에서 코다 표시가 있는 부분으로 바로 건너뛰어요."
+    },
+    {
+      "type": "timeline",
+      "title": "다카포 길찾기 — 순서대로 따라가 봐요!",
+      "subtitle": "숫자를 따라가면 실제로 연주하는 순서가 보여요",
+      "eras": [
+        { "emoji": "1", "name": "1마디", "years": "" },
+        { "emoji": "2", "name": "2마디 (Fine)", "years": "" },
+        { "emoji": "3", "name": "3마디", "years": "D.C. al Fine", "desc": "여기서 처음으로!", "highlight": true },
+        { "emoji": "↩", "name": "처음으로 점프!", "years": "", "desc": "다시 1마디부터", "highlight": true },
+        { "emoji": "1", "name": "1마디", "years": "" },
+        { "emoji": "2", "name": "2마디", "years": "Fine", "desc": "여기서 끝!", "highlight": true }
+      ],
+      "highlight_text": "실제 연주 순서: 1 → 2 → 3 → (처음으로!) → 1 → 2 (Fine, 끝!) — 악보에 적힌 순서와 실제로 연주하는 순서가 달라요!"
+    },
+    {
+      "type": "timeline",
+      "title": "달세뇨·코다 길찾기 — 순서대로 따라가 봐요!",
+      "subtitle": "표시로 돌아갔다가, 코다로 건너뛰어요",
+      "eras": [
+        { "emoji": "1", "name": "1마디 (세뇨)", "years": "" },
+        { "emoji": "2", "name": "2마디", "years": "" },
+        { "emoji": "3", "name": "3마디", "years": "D.S. al Coda", "desc": "여기서 세뇨로!", "highlight": true },
+        { "emoji": "↩", "name": "세뇨로 점프!", "years": "", "desc": "다시 1마디부터", "highlight": true },
+        { "emoji": "1", "name": "1마디 (세뇨)", "years": "To Coda", "desc": "여기서 코다로!", "highlight": true },
+        { "emoji": "코다", "name": "코다", "years": "", "desc": "건너뛰어 도착!", "highlight": true }
+      ],
+      "highlight_text": "실제 연주 순서: 1 → 2 → 3 → (세뇨 표시로!) → 1 → (2마디는 건너뛰고 코다로 점프!) → 코다, 끝! — 2마디는 두 번째엔 연주하지 않아요."
+    },
+    {
+      "type": "features",
+      "title": "다카포 vs 달세뇨·코다 — 정리해봐요",
+      "subtitle": "둘 다 '길찾기' 기호지만, 돌아가는 곳이 달라요",
+      "items": [
+        {
+          "emoji": "🔁",
+          "title": "다카포(D.C. al Fine) — 처음으로",
+          "desc": "악보 맨 처음(Capo)으로 돌아가서, 'Fine'이 적힌 곳까지 다시 연주해요."
+        },
+        {
+          "emoji": "🧭",
+          "title": "달세뇨·코다(D.S. al Coda) — 표시로, 그다음 건너뛰기",
+          "desc": "세뇨 표시가 있는 곳으로 돌아갔다가, 'To Coda'에서 코다 부분으로 건너뛰어요."
+        },
+        {
+          "emoji": "🔍",
+          "title": "구별법 — 어디로 돌아가는지 보세요!",
+          "desc": "'처음'으로 돌아가면 다카포, '세뇨 표시'로 돌아가면 달세뇨예요. 코다가 있으면 마지막에 건너뛰기까지 해요!"
+        }
+      ],
+      "note": "🔁 D.C. al Fine = 처음으로 · 🧭 D.S. al Coda = 세뇨 표시로 + 코다로 점프"
+    },
+    {
+      "type": "quiz",
+      "title": "퀴즈 타임!",
+      "subtitle": "다카포와 달세뇨·코다, 얼마나 알게 됐나요?",
+      "questions": [
+        {
+          "q": "'D.C. al Fine'을 만나면 어디로 돌아갈까요?",
+          "options": ["악보 맨 처음으로", "세뇨 표시가 있는 곳으로", "코다 부분으로"],
+          "answer": 0
+        },
+        {
+          "q": "'D.S. al Coda'를 만나면 어디로 돌아갈까요?",
+          "options": ["악보 맨 처음으로", "세뇨 표시가 있는 곳으로", "다음 마디로"],
+          "answer": 1
+        },
+        {
+          "q": "'Fine'이라고 적힌 곳에서는 어떻게 해야 할까요?",
+          "options": ["연주를 마쳐요", "처음으로 다시 돌아가요", "더 세게 연주해요"],
+          "answer": 0
+        },
+        {
+          "q": "'To Coda'를 만나면 어떻게 할까요?",
+          "options": ["계속 순서대로 연주해요", "코다 표시가 있는 부분으로 건너뛰어요", "연주를 멈춰요"],
+          "answer": 1
+        }
+      ]
+    }
+  ]
+}

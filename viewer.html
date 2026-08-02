@@ -192,6 +192,7 @@ html, body {
   text-align: center;
   line-height: 1.5;
 }
+.concept-card svg { max-width: 100% !important; height: auto !important; }
 
 .analogy-box {
   background: var(--green-bg);
@@ -980,6 +981,7 @@ svg.wedge { display: block; }
   padding: 4px 6px; width: auto; max-width: 100%;
   display: flex; align-items: center; justify-content: center;
 }
+.staff-ornament svg { max-width: 100% !important; height: auto !important; }
 .ornament-detail { flex: 1; display: flex; flex-direction: column; gap: 4px; min-width: 200px; }
 .ornament-name-big { font-family: 'Jua', sans-serif; font-size: 22px; line-height: 1; }
 .ornament-card.ca .ornament-name-big { color: var(--ca-dark); }
@@ -1473,7 +1475,7 @@ function buildReview(s, meta, slideId) {
     <div class="review-composers">
       ${s.composers.map((c, i) => `
         <div class="review-comp">
-          ${c.rest_type
+          ${c.rest_type || (c.symbol_type && VEX_SYMBOL_RENDERERS[c.symbol_type])
             ? `<div class="review-comp-vex" id="${slideId}-rc-${i}"></div>`
             : c.emoji ? `<span class="review-comp-emoji">${c.emoji}</span>` : ''}
           <span class="review-comp-name">${c.name}</span>
@@ -1486,6 +1488,8 @@ function buildReview(s, meta, slideId) {
   s.composers.forEach((c, i) => {
     if (c.rest_type) {
       queueVexRender(() => renderVexRest(`${slideId}-rc-${i}`, c.rest_type, '#5F5E5A'));
+    } else if (c.symbol_type && VEX_SYMBOL_RENDERERS[c.symbol_type]) {
+      queueVexRender(() => VEX_SYMBOL_RENDERERS[c.symbol_type](`${slideId}-rc-${i}`, '#5F5E5A'));
     }
   });
 
@@ -2250,6 +2254,70 @@ function renderVexTenuto(id, color) {
   voice.draw(ctx, stave);
 }
 
+/* ── VEXFLOW: DA CAPO (Fine + D.C. al Fine) / DAL SEGNO AL CODA
+   (Segno + D.S. al Coda + Coda) — rendered via VexFlow's built-in
+   Stave.Repetition glyphs, the same engraving used in real printed
+   scores. Verified live against VexFlow's Repetition.type table
+   before shipping (segno needed extra top headroom — same clipping
+   pattern as fermata/breath). ── */
+function renderVexDaCapo(id, color) {
+  const container = document.getElementById(id);
+  if (!container) return;
+  container.innerHTML = '';
+  const { Renderer, Stave, StaveNote, Voice, Formatter, Repetition } = Vex.Flow;
+
+  const W = 220, H = 140;
+  const renderer = new Renderer(container, Renderer.Backends.SVG);
+  renderer.resize(W, H);
+  const ctx = renderer.getContext();
+  ctx.setFillStyle(color); ctx.setStrokeStyle(color);
+
+  const s1 = new Stave(5, 45, 90);
+  s1.setRepetitionType(Repetition.type.FINE, 0, 0);
+  s1.setContext(ctx).draw();
+  const n1 = new StaveNote({ keys: ['b/4'], duration: 'q' });
+  const v1 = new Voice({ num_beats: 1, beat_value: 4 }).setStrict(false).addTickables([n1]);
+  new Formatter().joinVoices([v1]).format([v1], 40);
+  v1.draw(ctx, s1);
+
+  const s2 = new Stave(95, 45, 115);
+  s2.setRepetitionType(Repetition.type.DC_AL_FINE, 0, 0);
+  s2.setContext(ctx).draw();
+  const n2 = new StaveNote({ keys: ['b/4'], duration: 'q' });
+  const v2 = new Voice({ num_beats: 1, beat_value: 4 }).setStrict(false).addTickables([n2]);
+  new Formatter().joinVoices([v2]).format([v2], 40);
+  v2.draw(ctx, s2);
+}
+
+function renderVexSegnoCoda(id, color) {
+  const container = document.getElementById(id);
+  if (!container) return;
+  container.innerHTML = '';
+  const { Renderer, Stave, StaveNote, Voice, Formatter, Repetition } = Vex.Flow;
+
+  const W = 260, H = 140;
+  const renderer = new Renderer(container, Renderer.Backends.SVG);
+  renderer.resize(W, H);
+  const ctx = renderer.getContext();
+  ctx.setFillStyle(color); ctx.setStrokeStyle(color);
+
+  const s1 = new Stave(5, 45, 90);
+  s1.setRepetitionType(Repetition.type.SEGNO_LEFT, 0, 0);
+  s1.setContext(ctx).draw();
+  const n1 = new StaveNote({ keys: ['b/4'], duration: 'q' });
+  const v1 = new Voice({ num_beats: 1, beat_value: 4 }).setStrict(false).addTickables([n1]);
+  new Formatter().joinVoices([v1]).format([v1], 40);
+  v1.draw(ctx, s1);
+
+  const s2 = new Stave(95, 45, 135);
+  s2.setRepetitionType(Repetition.type.DS_AL_CODA, 0, 0);
+  s2.setContext(ctx).draw();
+  const n2 = new StaveNote({ keys: ['b/4'], duration: 'q' });
+  const v2 = new Voice({ num_beats: 1, beat_value: 4 }).setStrict(false).addTickables([n2]);
+  new Formatter().joinVoices([v2]).format([v2], 40);
+  v2.draw(ctx, s2);
+}
+
 /* Symbol types rendered via VexFlow (real engraving) rather than hand-drawn
    SVG — shared by buildIntro's concept cards and buildOrnament's detail badge. */
 const VEX_SYMBOL_RENDERERS = {
@@ -2260,7 +2328,9 @@ const VEX_SYMBOL_RENDERERS = {
   pizzicato: renderVexPizzicato,
   arco: renderVexArco,
   staccato: renderVexStaccato,
-  tenuto: renderVexTenuto
+  tenuto: renderVexTenuto,
+  dacapo: renderVexDaCapo,
+  segnocoda: renderVexSegnoCoda
 };
 
 /* ── ORNAMENT BUILDER ── */
@@ -2284,7 +2354,9 @@ function buildOrnament(s, meta, slideId) {
     pizzicato: '음표 위에<br>글자로 표시해요!',
     arco: '음표 위에<br>글자로 표시해요!',
     staccato: '음표 위에<br>작은 점으로 표시해요!',
-    tenuto: '음표 위에<br>짧은 선으로 표시해요!'
+    tenuto: '음표 위에<br>짧은 선으로 표시해요!',
+    dacapo: '악보 끝에<br>글자로 표시해요!',
+    segnocoda: '악보 위에<br>기호로 표시해요!'
   };
   const staffLabel = staffLabelMap[s.symbol_type] || '';
   const effectsHtml = (s.effect_words || []).map(w => `<span class="effect-tag">${w}</span>`).join('');
@@ -2692,6 +2764,74 @@ function playOrnament(slideId) {
       clearRipples(rId);
       const d = document.getElementById(dotId); if (d) d.style.transform = 'scale(1)';
     }, totalMs2 + 250);
+
+  } else if (audioType === 'dacapo' || audioType === 'segnocoda') {
+    // Plays the melody in actual performance order (not left-to-right
+    // score order) so the "jump" is audible: notes 1-2-3, a swoop cue
+    // back to the jump target, then the notes actually heard after it.
+    const t0 = ctx.currentTime;
+    const noteLen = 0.42, gap = 0.08;
+
+    function schedNote(startT, freq, gain) {
+      const osc = ctx.createOscillator(), g = ctx.createGain();
+      osc.connect(g); g.connect(ctx.destination);
+      osc.setPeriodicWave(getViolinWave(ctx));
+      osc.frequency.setValueAtTime(freq, startT);
+      g.gain.setValueAtTime(0, startT);
+      g.gain.linearRampToValueAtTime(gain, startT + 0.03);
+      g.gain.setValueAtTime(gain, startT + noteLen - 0.08);
+      g.gain.linearRampToValueAtTime(0, startT + noteLen);
+      osc.start(startT); osc.stop(startT + noteLen + 0.01);
+    }
+    function schedSwoop(startT, dur, fromFreq, toFreq) {
+      const osc = ctx.createOscillator(), g = ctx.createGain();
+      osc.connect(g); g.connect(ctx.destination);
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(fromFreq, startT);
+      osc.frequency.exponentialRampToValueAtTime(toFreq, startT + dur);
+      g.gain.setValueAtTime(0.001, startT);
+      g.gain.linearRampToValueAtTime(0.22, startT + dur * 0.3);
+      g.gain.linearRampToValueAtTime(0.001, startT + dur);
+      osc.start(startT); osc.stop(startT + dur + 0.01);
+    }
+    function pulse(delayMs, ripColor, scale) {
+      setTimeout(() => {
+        animateRipples(rId, ripColor, 0.4, 12, 32);
+        const d = document.getElementById(dotId); if (d) d.style.transform = `scale(${scale})`;
+      }, delayMs);
+    }
+
+    let cursor = 0;
+    if (audioType === 'dacapo') {
+      const f = [NOTE_FREQ['C4'], NOTE_FREQ['D4'], NOTE_FREQ['E4']];
+      // Measure 1 (Fine here) -> Measure 2 -> Measure 3 (D.C. al Fine here)
+      schedNote(t0, f[0], 0.3); pulse(cursor * 1000, '#AAAAAA', 1.3); cursor += noteLen + gap;
+      schedNote(t0 + cursor, f[1], 0.3); pulse(cursor * 1000, '#AAAAAA', 1.3); cursor += noteLen + gap;
+      schedNote(t0 + cursor, f[2], 0.3); pulse(cursor * 1000, '#AAAAAA', 1.3); cursor += noteLen + gap * 1.5;
+      // Jump back to the very beginning
+      schedSwoop(t0 + cursor, 0.3, f[2], f[0]); cursor += 0.3 + gap;
+      // Replay from measure 1, stop at Fine (end of measure 1 this time)
+      schedNote(t0 + cursor, f[0], 0.34); pulse(cursor * 1000, color, 1.6); cursor += noteLen + gap;
+    } else {
+      const f = [NOTE_FREQ['C4'], NOTE_FREQ['D4'], NOTE_FREQ['E4'], NOTE_FREQ['G4']];
+      // Segno at measure 1 -> measure 2 -> measure 3 (D.S. al Coda here)
+      schedNote(t0, f[0], 0.3); pulse(cursor * 1000, '#AAAAAA', 1.3); cursor += noteLen + gap;
+      schedNote(t0 + cursor, f[1], 0.3); pulse(cursor * 1000, '#AAAAAA', 1.3); cursor += noteLen + gap;
+      schedNote(t0 + cursor, f[2], 0.3); pulse(cursor * 1000, '#AAAAAA', 1.3); cursor += noteLen + gap * 1.5;
+      // Jump back to the Segno mark (measure 1)
+      schedSwoop(t0 + cursor, 0.28, f[2], f[0]); cursor += 0.28 + gap;
+      schedNote(t0 + cursor, f[0], 0.32); pulse(cursor * 1000, '#AAAAAA', 1.4); cursor += noteLen + gap * 1.5;
+      // "To Coda" — skip ahead, past measure 2, straight to the Coda section
+      schedSwoop(t0 + cursor, 0.3, f[0], f[3]); cursor += 0.3 + gap;
+      schedNote(t0 + cursor, f[3], 0.34); pulse(cursor * 1000, color, 1.7); cursor += noteLen + gap;
+    }
+
+    const totalMs3 = cursor * 1000;
+    setTimeout(() => {
+      if (btn) { btn.disabled = false; btn.textContent = '▶ 다시 들어보기'; }
+      clearRipples(rId);
+      const d = document.getElementById(dotId); if (d) d.style.transform = 'scale(1)';
+    }, totalMs3 + 250);
   }
 }
 

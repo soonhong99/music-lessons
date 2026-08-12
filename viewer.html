@@ -754,6 +754,12 @@ svg.wedge { display: block; }
    !important is required to override it and make the badge scale up. */
 .review-comp-vex svg { display: block; width: 100% !important; height: 100% !important; }
 .review-comp-name  { font-family: 'Jua', sans-serif; font-size: 13px; color: #6A6460; }
+.review-comp-play {
+  font-family: 'Nanum Gothic', sans-serif; font-size: 11px; color: white;
+  background: var(--ca); border: none; border-radius: 20px;
+  padding: 3px 10px; margin-top: 2px; cursor: pointer;
+}
+.review-comp-play:disabled { opacity: 0.5; cursor: default; }
 .review-next {
   font-family: 'Jua', sans-serif;
   font-size: 13px;
@@ -1497,6 +1503,8 @@ function buildReview(s, meta, slideId) {
             ? `<div class="review-comp-vex" id="${slideId}-rc-${i}"></div>`
             : c.emoji ? `<span class="review-comp-emoji">${c.emoji}</span>` : ''}
           <span class="review-comp-name">${c.name}</span>
+          ${c.playable ? `<button class="review-comp-play" id="${slideId}-rp-${i}"
+            onclick="playReviewSound('${c.symbol_type}', this)">▶ 다시 듣기</button>` : ''}
         </div>
       `).join('')}
     </div>
@@ -1512,6 +1520,44 @@ function buildReview(s, meta, slideId) {
   });
 
   return el;
+}
+
+/* Single, non-contrasted playback for a review badge's "다시 듣기" button —
+   unlike playOrnament's contrast-first demos, this just plays that one
+   sound once so a past lesson's concept can be re-heard during review. */
+function playReviewSound(kind, btn) {
+  const ctx = getAudioCtx();
+  const t0 = ctx.currentTime;
+  if (btn) { btn.disabled = true; }
+
+  function schedTone(freq, startT, dur, gain) {
+    const osc = ctx.createOscillator(), g = ctx.createGain();
+    osc.connect(g); g.connect(ctx.destination);
+    osc.setPeriodicWave(getViolinWave(ctx));
+    osc.frequency.setValueAtTime(freq, startT);
+    g.gain.setValueAtTime(0, startT);
+    g.gain.linearRampToValueAtTime(gain, startT + 0.04);
+    g.gain.setValueAtTime(gain, startT + dur - 0.15);
+    g.gain.linearRampToValueAtTime(0, startT + dur);
+    osc.start(startT); osc.stop(startT + dur + 0.01);
+  }
+
+  let dur = 0.9;
+  if (kind === 'major_chord') {
+    [NOTE_FREQ['C4'], NOTE_FREQ['E4'], NOTE_FREQ['G4']].forEach(f => schedTone(f, t0, dur, 0.22));
+  } else if (kind === 'minor_chord') {
+    [NOTE_FREQ['C4'], NOTE_FREQ['Eb4'], NOTE_FREQ['G4']].forEach(f => schedTone(f, t0, dur, 0.22));
+  } else if (kind === 'chord') {
+    [NOTE_FREQ['C4'], NOTE_FREQ['E4'], NOTE_FREQ['G4']].forEach(f => schedTone(f, t0, dur, 0.2));
+  } else if (kind === 'melody') {
+    dur = 1.2;
+    [NOTE_FREQ['C4'], NOTE_FREQ['E4'], NOTE_FREQ['G4']].forEach((f, i) => schedTone(f, t0 + i * 0.4, 0.4, 0.28));
+  } else if (kind === 'arpeggio') {
+    dur = 0.5;
+    [NOTE_FREQ['C4'], NOTE_FREQ['E4'], NOTE_FREQ['G4']].forEach((f, i) => schedTone(f, t0 + i * 0.11, 0.3, 0.26));
+  }
+
+  setTimeout(() => { if (btn) btn.disabled = false; }, dur * 1000 + 150);
 }
 
 /* ── TIMELINE BUILDER ── */
@@ -2367,6 +2413,33 @@ function renderVexTriad(id, color, keys, flatIdx) {
 function renderVexMajorTriad(id, color) { renderVexTriad(id, color, ['c/4', 'e/4', 'g/4']); }
 function renderVexMinorTriad(id, color) { renderVexTriad(id, color, ['c/4', 'eb/4', 'g/4'], 1); }
 
+/* ── VEXFLOW: ARPEGGIO — a wavy vertical line to the left of a chord,
+   telling the player to roll it instead of striking it all at once.
+   Verified live against VexFlow's Stroke.Type table before shipping. ── */
+function renderVexArpeggio(id, color) {
+  const container = document.getElementById(id);
+  if (!container) return;
+  container.innerHTML = '';
+  const { Renderer, Stave, StaveNote, Voice, Formatter, Stroke } = Vex.Flow;
+
+  const W = 150, H = 140;
+  const renderer = new Renderer(container, Renderer.Backends.SVG);
+  renderer.resize(W, H);
+  const ctx = renderer.getContext();
+
+  const stave = new Stave(25, 28, 105);
+  stave.addClef('treble');
+  ctx.setFillStyle('#AAAAAA'); ctx.setStrokeStyle('#AAAAAA');
+  stave.setContext(ctx).draw();
+
+  ctx.setFillStyle(color); ctx.setStrokeStyle(color);
+  const chord = new StaveNote({ keys: ['c/4', 'e/4', 'g/4'], duration: 'q' });
+  chord.addModifier(new Stroke(Stroke.Type.ARPEGGIO_DIRECTIONLESS));
+  const voice = new Voice({ num_beats: 1, beat_value: 4 }).setStrict(false).addTickables([chord]);
+  new Formatter().joinVoices([voice]).format([voice], 50);
+  voice.draw(ctx, stave);
+}
+
 /* ── VEXFLOW: STACCATO (dot, 'a.') / TENUTO (short line, 'a-') ──
    Verified live in-browser against VexFlow's Articulation glyph table
    before shipping — matches real engraving conventions. ── */
@@ -2438,7 +2511,8 @@ const VEX_SYMBOL_RENDERERS = {
   melody: renderVexMelody,
   chord: renderVexChord,
   major_chord: renderVexMajorTriad,
-  minor_chord: renderVexMinorTriad
+  minor_chord: renderVexMinorTriad,
+  arpeggio: renderVexArpeggio
 };
 
 /* ── ORNAMENT BUILDER ── */
@@ -2468,7 +2542,8 @@ function buildOrnament(s, meta, slideId) {
     melody: '음표를<br>하나씩 따로 그려요!',
     chord: '음표를<br>한 기둥에 쌓아요!',
     major_chord: '가운데 음이<br>그대로예요!',
-    minor_chord: '가운데 음에<br>플랫(b)이 붙어요!'
+    minor_chord: '가운데 음에<br>플랫(b)이 붙어요!',
+    arpeggio: '음표 왼쪽에<br>물결선으로 표시해요!'
   };
   const staffLabel = staffLabelMap[s.symbol_type] || '';
   const effectsHtml = (s.effect_words || []).map(w => `<span class="effect-tag">${w}</span>`).join('');
@@ -3029,6 +3104,45 @@ function playOrnament(slideId) {
       clearRipples(rId);
       const d = document.getElementById(dotId); if (d) d.style.transform = 'scale(1)';
     }, totalMs5 + 250);
+
+  } else if (audioType === 'arpeggio') {
+    // Same three notes as the block chord (C-E-G), just heard first ALL AT
+    // ONCE, then quickly ROLLED bottom-to-top — the notation's wavy line
+    // literally means "spread this chord out", so the demo does exactly that.
+    const t0 = ctx.currentTime;
+    const freqs = [NOTE_FREQ['C4'], NOTE_FREQ['E4'], NOTE_FREQ['G4']];
+
+    function schedTone(startT, freq, dur, gain) {
+      const osc = ctx.createOscillator(), g = ctx.createGain();
+      osc.connect(g); g.connect(ctx.destination);
+      osc.setPeriodicWave(getViolinWave(ctx));
+      osc.frequency.setValueAtTime(freq, startT);
+      g.gain.setValueAtTime(0, startT);
+      g.gain.linearRampToValueAtTime(gain, startT + 0.02);
+      g.gain.setValueAtTime(gain, startT + dur - 0.08);
+      g.gain.linearRampToValueAtTime(0, startT + dur);
+      osc.start(startT); osc.stop(startT + dur + 0.01);
+    }
+
+    // Block chord first (contrast, gray)
+    freqs.forEach(f => schedTone(t0, f, 0.9, 0.2));
+    setTimeout(() => { animateRipples(rId, '#AAAAAA', 0.5, 14, 40); const d=document.getElementById(dotId); if(d) d.style.transform='scale(1.4)'; }, 0);
+    let cursor = 0.9 + 0.35;
+
+    // Rolled arpeggio (color) — same notes, quick ascending stagger
+    freqs.forEach((f, i) => {
+      const st = cursor + i * 0.12;
+      schedTone(t0 + st, f, 0.35, 0.26);
+      setTimeout(() => { animateRipples(rId, color, 0.4, 10, 28); const d=document.getElementById(dotId); if(d) d.style.transform='scale(1.6)'; }, st * 1000);
+    });
+    cursor += freqs.length * 0.12 + 0.35;
+
+    const totalMs6 = cursor * 1000;
+    setTimeout(() => {
+      if (btn) { btn.disabled = false; btn.textContent = '▶ 다시 들어보기'; }
+      clearRipples(rId);
+      const d = document.getElementById(dotId); if (d) d.style.transform = 'scale(1)';
+    }, totalMs6 + 250);
   }
 }
 

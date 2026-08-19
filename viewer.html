@@ -2471,6 +2471,67 @@ function renderVexArpeggio(id, color) {
   voice.draw(ctx, stave);
 }
 
+/* ── VEXFLOW: TRIPLET (3-bracket over 3 beamed eighths) / DOTTED RHYTHM
+   (dotted-eighth + sixteenth, beamed) — verified live against VexFlow's
+   Tuplet/Beam/Dot classes before shipping. ── */
+function renderVexTriplet(id, color) {
+  const container = document.getElementById(id);
+  if (!container) return;
+  container.innerHTML = '';
+  const { Renderer, Stave, StaveNote, Voice, Formatter, Beam, Tuplet } = Vex.Flow;
+
+  const W = 150, H = 140;
+  const renderer = new Renderer(container, Renderer.Backends.SVG);
+  renderer.resize(W, H);
+  const ctx = renderer.getContext();
+
+  const stave = new Stave(5, 28, 130);
+  stave.addClef('treble');
+  ctx.setFillStyle('#AAAAAA'); ctx.setStrokeStyle('#AAAAAA');
+  stave.setContext(ctx).draw();
+
+  ctx.setFillStyle(color); ctx.setStrokeStyle(color);
+  const notes = [
+    new StaveNote({ keys: ['b/4'], duration: '8' }),
+    new StaveNote({ keys: ['b/4'], duration: '8' }),
+    new StaveNote({ keys: ['b/4'], duration: '8' }),
+  ];
+  const beam = new Beam(notes);
+  const tuplet = new Tuplet(notes);
+  const voice = new Voice({ num_beats: 1, beat_value: 4 }).setStrict(false).addTickables(notes);
+  new Formatter().joinVoices([voice]).format([voice], 85);
+  voice.draw(ctx, stave);
+  beam.setContext(ctx).draw();
+  tuplet.setContext(ctx).draw();
+}
+
+function renderVexDottedRhythm(id, color) {
+  const container = document.getElementById(id);
+  if (!container) return;
+  container.innerHTML = '';
+  const { Renderer, Stave, StaveNote, Voice, Formatter, Beam, Dot } = Vex.Flow;
+
+  const W = 150, H = 140;
+  const renderer = new Renderer(container, Renderer.Backends.SVG);
+  renderer.resize(W, H);
+  const ctx = renderer.getContext();
+
+  const stave = new Stave(5, 28, 130);
+  stave.addClef('treble');
+  ctx.setFillStyle('#AAAAAA'); ctx.setStrokeStyle('#AAAAAA');
+  stave.setContext(ctx).draw();
+
+  ctx.setFillStyle(color); ctx.setStrokeStyle(color);
+  const n1 = new StaveNote({ keys: ['b/4'], duration: '8d' });
+  n1.addModifier(new Dot(0));
+  const n2 = new StaveNote({ keys: ['b/4'], duration: '16' });
+  const beam = new Beam([n1, n2]);
+  const voice = new Voice({ num_beats: 1, beat_value: 4 }).setStrict(false).addTickables([n1, n2]);
+  new Formatter().joinVoices([voice]).format([voice], 85);
+  voice.draw(ctx, stave);
+  beam.setContext(ctx).draw();
+}
+
 /* ── VEXFLOW: STACCATO (dot, 'a.') / TENUTO (short line, 'a-') ──
    Verified live in-browser against VexFlow's Articulation glyph table
    before shipping — matches real engraving conventions. ── */
@@ -2543,7 +2604,9 @@ const VEX_SYMBOL_RENDERERS = {
   chord: renderVexChord,
   major_chord: renderVexMajorTriad,
   minor_chord: renderVexMinorTriad,
-  arpeggio: renderVexArpeggio
+  arpeggio: renderVexArpeggio,
+  triplet: renderVexTriplet,
+  dotted_rhythm: renderVexDottedRhythm
 };
 
 /* ── ORNAMENT BUILDER ── */
@@ -2574,7 +2637,9 @@ function buildOrnament(s, meta, slideId) {
     chord: '음표를<br>한 기둥에 쌓아요!',
     major_chord: '가운데 음이<br>그대로예요!',
     minor_chord: '가운데 음에<br>플랫(b)이 붙어요!',
-    arpeggio: '음표 왼쪽에<br>물결선으로 표시해요!'
+    arpeggio: '음표 왼쪽에<br>물결선으로 표시해요!',
+    triplet: '음표 3개 위에<br>숫자 3으로 표시해요!',
+    dotted_rhythm: '점8분음표+16분음표를<br>이렇게 묶어서 표시해요!'
   };
   const staffLabel = staffLabelMap[s.symbol_type] || '';
   const effectsHtml = (s.effect_words || []).map(w => `<span class="effect-tag">${w}</span>`).join('');
@@ -3174,6 +3239,68 @@ function playOrnament(slideId) {
       clearRipples(rId);
       const d = document.getElementById(dotId); if (d) d.style.transform = 'scale(1)';
     }, totalMs6 + 250);
+
+  } else if (audioType === 'triplet' || audioType === 'dotted_rhythm') {
+    // Straight (2 even notes) vs the target rhythm, played back-to-back
+    // and repeated 3 times in a row — a single quick contrast isn't enough
+    // to internalize a rhythmic FEEL, so this loops it like counting along
+    // with a teacher: straight-target, straight-target, straight-target.
+    const t0 = ctx.currentTime;
+    const freq = NOTE_FREQ['A4'];
+    const beatLen = 0.8;
+
+    function schedTone(startT, dur, gain) {
+      const osc = ctx.createOscillator(), g = ctx.createGain();
+      osc.connect(g); g.connect(ctx.destination);
+      osc.setPeriodicWave(getViolinWave(ctx));
+      osc.frequency.setValueAtTime(freq, startT);
+      g.gain.setValueAtTime(0, startT);
+      g.gain.linearRampToValueAtTime(gain, startT + 0.015);
+      g.gain.setValueAtTime(gain, startT + dur - 0.05);
+      g.gain.linearRampToValueAtTime(0, startT + dur);
+      osc.start(startT); osc.stop(startT + dur + 0.01);
+    }
+    function pulse(delayMs, ripColor, scale) {
+      setTimeout(() => {
+        animateRipples(rId, ripColor, 0.35, 10, 26);
+        const d = document.getElementById(dotId); if (d) d.style.transform = `scale(${scale})`;
+      }, delayMs);
+    }
+    function schedStraightBar(startCursor, ripColor, scale) {
+      const half = beatLen / 2;
+      schedTone(t0 + startCursor, half * 0.85, 0.26); pulse(startCursor * 1000, ripColor, scale);
+      schedTone(t0 + startCursor + half, half * 0.85, 0.26); pulse((startCursor + half) * 1000, ripColor, scale);
+      return startCursor + beatLen;
+    }
+    function schedTripletBar(startCursor, ripColor, scale) {
+      const third = beatLen / 3;
+      for (let i = 0; i < 3; i++) {
+        const st = startCursor + i * third;
+        schedTone(t0 + st, third * 0.85, 0.28); pulse(st * 1000, ripColor, scale);
+      }
+      return startCursor + beatLen;
+    }
+    function schedDottedBar(startCursor, ripColor, scale) {
+      const longDur = beatLen * 0.75, shortDur = beatLen * 0.25;
+      schedTone(t0 + startCursor, longDur * 0.85, 0.28); pulse(startCursor * 1000, ripColor, scale * 1.05);
+      schedTone(t0 + startCursor + longDur, shortDur * 0.85, 0.28); pulse((startCursor + longDur) * 1000, ripColor, scale * 0.9);
+      return startCursor + beatLen;
+    }
+    const schedTarget = audioType === 'triplet' ? schedTripletBar : schedDottedBar;
+
+    let cursor = 0;
+    const gap = 0.15;
+    for (let rep = 0; rep < 3; rep++) {
+      cursor = schedStraightBar(cursor, '#AAAAAA', 1.3) + gap;
+      cursor = schedTarget(cursor, color, 1.6) + gap;
+    }
+
+    const totalMs7 = cursor * 1000;
+    setTimeout(() => {
+      if (btn) { btn.disabled = false; btn.textContent = '▶ 다시 들어보기'; }
+      clearRipples(rId);
+      const d = document.getElementById(dotId); if (d) d.style.transform = 'scale(1)';
+    }, totalMs7 + 250);
   }
 }
 

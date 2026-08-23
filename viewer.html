@@ -1555,6 +1555,15 @@ function playReviewSound(kind, btn) {
   } else if (kind === 'arpeggio') {
     dur = 0.5;
     [NOTE_FREQ['C4'], NOTE_FREQ['E4'], NOTE_FREQ['G4']].forEach((f, i) => schedTone(f, t0 + i * 0.11, 0.3, 0.26));
+  } else if (kind === 'triplet') {
+    dur = 0.75;
+    const third = dur / 3;
+    [0, 1, 2].forEach(i => schedTone(NOTE_FREQ['A4'], t0 + i * third, third * 0.85, 0.26));
+  } else if (kind === 'dotted_rhythm') {
+    const longDur = 0.56, shortDur = 0.19;
+    schedTone(NOTE_FREQ['A4'], t0, longDur * 0.85, 0.28);
+    schedTone(NOTE_FREQ['A4'], t0 + longDur, shortDur * 0.85, 0.28);
+    dur = longDur + shortDur;
   }
 
   setTimeout(() => { if (btn) btn.disabled = false; }, dur * 1000 + 150);
@@ -2532,6 +2541,13 @@ function renderVexDottedRhythm(id, color) {
   beam.setContext(ctx).draw();
 }
 
+/* Generic 3/4 time-signature badge, reused by the intro concept cards that
+   explain what the top vs bottom number means — real notation, not a
+   hand-drawn stand-in. Defined here so it's declared before the
+   VEX_SYMBOL_RENDERERS map below; relies on renderVexTimeSignature
+   (function declarations are hoisted, so the later definition still works). */
+function renderVexTimeSigBadge(id, color) { renderVexTimeSignature(id, color, '3/4', 3); }
+
 /* ── VEXFLOW: STACCATO (dot, 'a.') / TENUTO (short line, 'a-') ──
    Verified live in-browser against VexFlow's Articulation glyph table
    before shipping — matches real engraving conventions. ── */
@@ -2606,7 +2622,8 @@ const VEX_SYMBOL_RENDERERS = {
   minor_chord: renderVexMinorTriad,
   arpeggio: renderVexArpeggio,
   triplet: renderVexTriplet,
-  dotted_rhythm: renderVexDottedRhythm
+  dotted_rhythm: renderVexDottedRhythm,
+  timesig_badge: renderVexTimeSigBadge
 };
 
 /* ── ORNAMENT BUILDER ── */

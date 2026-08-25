@@ -1694,6 +1694,97 @@ function buildVideoFeature(s, meta, slideId) {
   return el;
 }
 
+/* ── COUNTERPOINT BUILDER ── a two-voice round: same 4-note melody,
+   second voice delayed by one beat. Reuses .ornament-card layout for
+   visual consistency with other concept-detail slides. */
+function buildCounterpoint(s, meta, slideId) {
+  const cl = clsOf(s.color || 'a');
+  const rId = `cp-r-${slideId}`;
+  const dotId = `cp-d-${slideId}`;
+  const btnId = `cp-b-${slideId}`;
+  const el = document.createElement('div');
+  el.className = 'slide';
+  el.innerHTML = `
+    <h1 class="slide-title" style="font-size:clamp(16px,2.4vw,22px);">🧩 ${s.title}</h1>
+    <div class="ornament-card ${cl}">
+      <div class="ornament-main-row">
+        <div class="staff-ornament-wrap">
+          <div class="staff-ornament" id="${slideId}-vex"></div>
+          <div class="staff-mini-label">성부 2가 한 박 늦게<br>같은 멜로디를 따라해요!</div>
+        </div>
+        <div class="ornament-detail">
+          <div class="ornament-name-big">${s.name}</div>
+          <div class="ornament-korean">${s.korean}</div>
+          <div class="ornament-analogy-tag">${s.analogy}</div>
+          ${s.usage ? `<div class="ornament-usage-note">${s.usage}</div>` : ''}
+        </div>
+      </div>
+    </div>
+    <div class="orn-vis-wrap">
+      <div class="sound-visualizer ${cl}" style="width:80px;height:80px;border-radius:50%;flex-shrink:0;max-width:80px;">
+        <div class="ripple-container" id="${rId}"></div>
+        <div class="center-dot ${cl}" id="${dotId}" style="width:14px;height:14px;"></div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:5px;min-width:0;">
+        <p style="font-size:12px;color:var(--text-mid);line-height:1.5;">${s.listen_hint}</p>
+        <button class="btn btn-${cl}" id="${btnId}" onclick="playCounterpointDemo('${slideId}')" style="font-size:13px;padding:8px 20px;align-self:flex-start;">▶ 소리 들어보기</button>
+      </div>
+    </div>
+  `;
+  el._cpState = { rId, dotId, btnId, colorA: meta.color_a, colorB: meta.color_b };
+  queueVexRender(() => renderVexCounterpoint(slideId + '-vex', meta.color_a, meta.color_b));
+  return el;
+}
+
+function playCounterpointDemo(slideId) {
+  const el = slideEls.find(e => e.id === slideId);
+  if (!el || !el._cpState) return;
+  const { rId, dotId, btnId, colorA, colorB } = el._cpState;
+  const btn = document.getElementById(btnId);
+  if (btn) { btn.disabled = true; btn.textContent = '▶ 재생 중...'; }
+  const ctx = getAudioCtx();
+  const t0 = ctx.currentTime;
+  const noteLen = 0.42;
+  const freqs = [NOTE_FREQ['C4'], NOTE_FREQ['D4'], NOTE_FREQ['E4'], NOTE_FREQ['C4']];
+
+  function schedTone(startT, freq, gain) {
+    const osc = ctx.createOscillator(), g = ctx.createGain();
+    osc.connect(g); g.connect(ctx.destination);
+    osc.setPeriodicWave(getViolinWave(ctx));
+    osc.frequency.setValueAtTime(freq, startT);
+    g.gain.setValueAtTime(0, startT);
+    g.gain.linearRampToValueAtTime(gain, startT + 0.02);
+    g.gain.setValueAtTime(gain, startT + noteLen - 0.08);
+    g.gain.linearRampToValueAtTime(0, startT + noteLen);
+    osc.start(startT); osc.stop(startT + noteLen + 0.01);
+  }
+  function pulse(delayMs, ripColor, scale) {
+    setTimeout(() => {
+      animateRipples(rId, ripColor, 0.4, 10, 30);
+      const d = document.getElementById(dotId); if (d) d.style.transform = `scale(${scale})`;
+    }, delayMs);
+  }
+
+  // Voice 1 starts immediately; Voice 2 enters one beat later with the
+  // exact same melody — the overlap IS the counterpoint being demonstrated.
+  freqs.forEach((f, i) => {
+    schedTone(t0 + i * noteLen, f, 0.24);
+    pulse(i * noteLen * 1000, colorA, 1.4);
+  });
+  const delay = noteLen;
+  freqs.forEach((f, i) => {
+    schedTone(t0 + delay + i * noteLen, f, 0.22);
+    pulse((delay + i * noteLen) * 1000, colorB, 1.6);
+  });
+
+  const totalMs = (delay + freqs.length * noteLen) * 1000;
+  setTimeout(() => {
+    if (btn) { btn.disabled = false; btn.textContent = '▶ 다시 들어보기'; }
+    clearRipples(rId);
+    const d = document.getElementById(dotId); if (d) d.style.transform = 'scale(1)';
+  }, totalMs + 250);
+}
+
 /* ── CHORD GALLERY BUILDER ── multiple root pairs (major/minor), each with
    its own play button, so the bright/dark contrast is heard repeat across
    different chords instead of just one example. */
@@ -2539,6 +2630,44 @@ function renderVexDottedRhythm(id, color) {
   new Formatter().joinVoices([voice]).format([voice], 85);
   voice.draw(ctx, stave);
   beam.setContext(ctx).draw();
+}
+
+/* ── VEXFLOW: COUNTERPOINT / ROUND (two stacked staves, same 4-note
+   melody, second voice delayed by one beat) — the simplest possible
+   real demonstration of counterpoint: an imitative round/canon. ── */
+function renderVexCounterpoint(id, colorA, colorB) {
+  const container = document.getElementById(id);
+  if (!container) return;
+  container.innerHTML = '';
+  const { Renderer, Stave, StaveNote, Voice, Formatter } = Vex.Flow;
+
+  const W = 240, H = 210;
+  const renderer = new Renderer(container, Renderer.Backends.SVG);
+  renderer.resize(W, H);
+  const ctx = renderer.getContext();
+
+  const stave1 = new Stave(5, 8, 220);
+  stave1.addClef('treble');
+  ctx.setFillStyle('#AAAAAA'); ctx.setStrokeStyle('#AAAAAA');
+  stave1.setContext(ctx).draw();
+  ctx.setFillStyle(colorA); ctx.setStrokeStyle(colorA);
+  const notes1 = ['c/4', 'd/4', 'e/4', 'c/4'].map(k => new StaveNote({ keys: [k], duration: 'q' }));
+  const voice1 = new Voice({ num_beats: 4, beat_value: 4 }).setStrict(false).addTickables(notes1);
+  new Formatter().joinVoices([voice1]).format([voice1], 170);
+  voice1.draw(ctx, stave1);
+
+  const stave2 = new Stave(5, 105, 220);
+  stave2.addClef('treble');
+  ctx.setFillStyle('#AAAAAA'); ctx.setStrokeStyle('#AAAAAA');
+  stave2.setContext(ctx).draw();
+  ctx.setFillStyle(colorB); ctx.setStrokeStyle(colorB);
+  const notes2 = [
+    new StaveNote({ keys: ['b/4'], duration: 'qr' }),
+    ...['c/4', 'd/4', 'e/4'].map(k => new StaveNote({ keys: [k], duration: 'q' }))
+  ];
+  const voice2 = new Voice({ num_beats: 4, beat_value: 4 }).setStrict(false).addTickables(notes2);
+  new Formatter().joinVoices([voice2]).format([voice2], 170);
+  voice2.draw(ctx, stave2);
 }
 
 /* Generic 3/4 time-signature badge, reused by the intro concept cards that
@@ -4357,6 +4486,7 @@ function loadLesson(data) {
     else if (s.type === 'duel')            el = buildDuel(s, meta, sid);
     else if (s.type === 'song_guide')      el = buildSongGuide(s, meta, sid);
     else if (s.type === 'chord_gallery')   el = buildChordGallery(s, meta, sid);
+    else if (s.type === 'counterpoint')    el = buildCounterpoint(s, meta, sid);
     else if (s.type === 'video_feature')   el = buildVideoFeature(s, meta, sid);
     else return;
     el.id = sid;

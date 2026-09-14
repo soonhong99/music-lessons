@@ -1226,7 +1226,8 @@ const slideEls = [];
 const NOTE_FREQ = {
   C4:261.63, D4:293.66, E4:329.63, F4:349.23,
   G4:392.00, A4:440.00, B4:493.88, C5:523.25,
-  Eb4:311.13, Ab4:415.30, Bb4:466.16, D5:587.33
+  Eb4:311.13, Ab4:415.30, Bb4:466.16, D5:587.33,
+  Cs5:554.37
 };
 
 /* violin PeriodicWave — Fourier harmonics approximating bowed string timbre */
@@ -1783,6 +1784,87 @@ function playCounterpointDemo(slideId) {
     clearRipples(rId);
     const d = document.getElementById(dotId); if (d) d.style.transform = 'scale(1)';
   }, totalMs + 250);
+}
+
+/* ── FINGERBOARD DIAGRAM ── a schematic string from the nut down toward the
+   bridge, one tick mark per finger position, spaced evenly per semitone so
+   the natural/sharp pair (1 semitone apart) sits visibly closer together
+   than the neighboring open-string/1st-finger gaps (2 semitones). Not to
+   physical scale — just enough geometry to show "closer to the bridge =
+   higher pitch" and "sharp sits a hair lower than natural". */
+function renderFingerboard(id, positions, meta) {
+  const container = document.getElementById(id);
+  if (!container) return;
+  const unit = 34, topY = 18, stringX = 50, W = 190;
+  const maxSemi = Math.max(...positions.map(p => p.semitone));
+  const H = topY + maxSemi * unit + 34;
+  let marks = '';
+  positions.forEach(p => {
+    const y = topY + p.semitone * unit;
+    const color = p.variant === 'natural' ? colorOf('a', meta)
+                : p.variant === 'sharp'   ? colorOf('b', meta)
+                : '#8A8A8A';
+    marks += `
+      <line x1="${stringX-9}" y1="${y}" x2="${stringX+9}" y2="${y}" stroke="${color}" stroke-width="2.5"/>
+      <circle cx="${stringX}" cy="${y}" r="5" fill="${color}"/>
+      <text x="${stringX+18}" y="${y+4}" font-size="11.5" font-family="'Jua', sans-serif" fill="${color}">${p.finger} · ${p.note_kr}</text>
+    `;
+  });
+  container.innerHTML = `
+    <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+      <rect x="${stringX-14}" y="4" width="28" height="9" rx="2" fill="#5A4A3A"/>
+      <line x1="${stringX}" y1="13" x2="${stringX}" y2="${H-10}" stroke="#B8860B" stroke-width="3"/>
+      <text x="${stringX}" y="${H-1}" font-size="9.5" text-anchor="middle" fill="#999">브릿지 방향 ↓</text>
+      ${marks}
+    </svg>
+  `;
+}
+
+function buildFingerPosition(s, meta, slideId) {
+  const cl = clsOf(s.color || 'a');
+  const diagId = `fp-diag-${slideId}`;
+  const natPos = (s.positions || []).find(p => p.variant === 'natural');
+  const shpPos = (s.positions || []).find(p => p.variant === 'sharp');
+  const el = document.createElement('div');
+  el.className = 'slide';
+  el.innerHTML = `
+    <h1 class="slide-title" style="font-size:clamp(16px,2.4vw,22px);">🎻 ${s.title}</h1>
+    ${s.subtitle ? `<p class="slide-subtitle">${s.subtitle}</p>` : ''}
+    <div class="ornament-card ${cl}">
+      <div class="ornament-main-row">
+        <div class="staff-ornament-wrap">
+          <div class="staff-ornament" id="${diagId}" style="min-height:220px;"></div>
+          ${s.string_label ? `<div class="staff-mini-label">${s.string_label}</div>` : ''}
+        </div>
+        <div class="ornament-detail">
+          ${s.compare_hint ? `<div class="ornament-korean">${s.compare_hint}</div>` : ''}
+        </div>
+      </div>
+    </div>
+    <div class="orn-vis-wrap" style="flex-wrap:wrap;gap:10px;">
+      ${natPos ? `<button class="btn btn-ca" style="font-size:13px;padding:8px 18px;" onclick="playFingerNote(${natPos.freq}, this)">▶ ${natPos.note_kr} 듣기</button>` : ''}
+      ${shpPos ? `<button class="btn btn-cb" style="font-size:13px;padding:8px 18px;" onclick="playFingerNote(${shpPos.freq}, this)">▶ ${shpPos.note_kr} 듣기</button>` : ''}
+    </div>
+  `;
+  queueVexRender(() => renderFingerboard(diagId, s.positions || [], meta));
+  return el;
+}
+
+function playFingerNote(freq, btn) {
+  const ctx = getAudioCtx();
+  const t0 = ctx.currentTime;
+  const dur = 0.9;
+  if (btn) { btn.disabled = true; }
+  const osc = ctx.createOscillator(), g = ctx.createGain();
+  osc.connect(g); g.connect(ctx.destination);
+  osc.setPeriodicWave(getViolinWave(ctx));
+  osc.frequency.setValueAtTime(freq, t0);
+  g.gain.setValueAtTime(0, t0);
+  g.gain.linearRampToValueAtTime(0.28, t0 + 0.04);
+  g.gain.setValueAtTime(0.28, t0 + dur - 0.15);
+  g.gain.linearRampToValueAtTime(0, t0 + dur);
+  osc.start(t0); osc.stop(t0 + dur + 0.02);
+  setTimeout(() => { if (btn) btn.disabled = false; }, dur * 1000 + 150);
 }
 
 /* ── CHORD GALLERY BUILDER ── multiple root pairs (major/minor), each with
@@ -2734,6 +2816,32 @@ function renderVexTenuto(id, color) {
 
 /* Symbol types rendered via VexFlow (real engraving) rather than hand-drawn
    SVG — shared by buildIntro's concept cards and buildOrnament's detail badge. */
+/* ── VEXFLOW: SHARP / NATURAL — single note with an accidental modifier,
+   for teaching that a sharp raises a note a half step and a natural sign
+   cancels a sharp/flat back to the plain pitch. ── */
+function renderVexAccidentalNote(id, color, accidental) {
+  const container = document.getElementById(id);
+  if (!container) return;
+  container.innerHTML = '';
+  const { Renderer, Stave, StaveNote, Voice, Formatter, Accidental } = Vex.Flow;
+  const W = 120, H = 140;
+  const renderer = new Renderer(container, Renderer.Backends.SVG);
+  renderer.resize(W, H);
+  const ctx = renderer.getContext();
+  const stave = new Stave(5, 28, W - 20);
+  stave.addClef('treble');
+  ctx.setFillStyle('#AAAAAA'); ctx.setStrokeStyle('#AAAAAA');
+  stave.setContext(ctx).draw();
+  ctx.setFillStyle(color); ctx.setStrokeStyle(color);
+  const note = new StaveNote({ keys: ['c/5'], duration: 'q' });
+  note.addModifier(new Accidental(accidental), 0);
+  const voice = new Voice({ num_beats: 1, beat_value: 4 }).setStrict(false).addTickables([note]);
+  new Formatter().joinVoices([voice]).format([voice], 45);
+  voice.draw(ctx, stave);
+}
+function renderVexSharp(id, color)   { renderVexAccidentalNote(id, color, '#'); }
+function renderVexNatural(id, color) { renderVexAccidentalNote(id, color, 'n'); }
+
 const VEX_SYMBOL_RENDERERS = {
   fermata: renderVexFermata,
   breath: renderVexBreath,
@@ -2752,7 +2860,9 @@ const VEX_SYMBOL_RENDERERS = {
   arpeggio: renderVexArpeggio,
   triplet: renderVexTriplet,
   dotted_rhythm: renderVexDottedRhythm,
-  timesig_badge: renderVexTimeSigBadge
+  timesig_badge: renderVexTimeSigBadge,
+  sharp: renderVexSharp,
+  natural: renderVexNatural
 };
 
 /* ── ORNAMENT BUILDER ── */
@@ -2785,7 +2895,9 @@ function buildOrnament(s, meta, slideId) {
     minor_chord: '가운데 음에<br>플랫(b)이 붙어요!',
     arpeggio: '음표 왼쪽에<br>물결선으로 표시해요!',
     triplet: '음표 3개 위에<br>숫자 3으로 표시해요!',
-    dotted_rhythm: '점8분음표+16분음표를<br>이렇게 묶어서 표시해요!'
+    dotted_rhythm: '점8분음표+16분음표를<br>이렇게 묶어서 표시해요!',
+    sharp: '음표 앞에<br>#으로 표시해요!',
+    natural: '음표 앞에<br>♮으로 표시해요!'
   };
   const staffLabel = staffLabelMap[s.symbol_type] || '';
   const effectsHtml = (s.effect_words || []).map(w => `<span class="effect-tag">${w}</span>`).join('');
@@ -3447,6 +3559,44 @@ function playOrnament(slideId) {
       clearRipples(rId);
       const d = document.getElementById(dotId); if (d) d.style.transform = 'scale(1)';
     }, totalMs7 + 250);
+
+  } else if (audioType === 'sharp' || audioType === 'natural') {
+    // A string 2nd finger: natural C5 (low 2) vs sharp C#5 (high 2) —
+    // 'sharp' plays natural-then-sharp (raising it), 'natural' plays
+    // sharp-then-natural (cancelling it back), so the button always
+    // demonstrates the transformation this slide is about.
+    const t0 = ctx.currentTime;
+    const dur = 0.85;
+    const naturalFreq = NOTE_FREQ['C5'], sharpFreq = NOTE_FREQ['Cs5'];
+    function schedTone(startT, freq, gain) {
+      const osc = ctx.createOscillator(), g = ctx.createGain();
+      osc.connect(g); g.connect(ctx.destination);
+      osc.setPeriodicWave(getViolinWave(ctx));
+      osc.frequency.setValueAtTime(freq, startT);
+      g.gain.setValueAtTime(0, startT);
+      g.gain.linearRampToValueAtTime(gain, startT + 0.02);
+      g.gain.setValueAtTime(gain, startT + dur - 0.1);
+      g.gain.linearRampToValueAtTime(0, startT + dur);
+      osc.start(startT); osc.stop(startT + dur + 0.01);
+    }
+    const firstFreq  = audioType === 'sharp' ? naturalFreq : sharpFreq;
+    const secondFreq = audioType === 'sharp' ? sharpFreq   : naturalFreq;
+    schedTone(t0, firstFreq, 0.22);
+    animateRipples(rId, '#AAAAAA', 0.4, 12, 32);
+    const d0 = document.getElementById(dotId); if (d0) d0.style.transform = 'scale(1.4)';
+    const gap = dur + 0.3;
+    setTimeout(() => {
+      schedTone(ctx.currentTime, secondFreq, 0.26);
+      animateRipples(rId, color, 0.4, 12, 34);
+      const d1 = document.getElementById(dotId); if (d1) d1.style.transform = 'scale(1.6)';
+    }, gap * 1000);
+
+    const totalMs8 = (gap + dur) * 1000;
+    setTimeout(() => {
+      if (btn) { btn.disabled = false; btn.textContent = '▶ 다시 들어보기'; }
+      clearRipples(rId);
+      const d = document.getElementById(dotId); if (d) d.style.transform = 'scale(1)';
+    }, totalMs8 + 250);
   }
 }
 
@@ -4487,6 +4637,7 @@ function loadLesson(data) {
     else if (s.type === 'song_guide')      el = buildSongGuide(s, meta, sid);
     else if (s.type === 'chord_gallery')   el = buildChordGallery(s, meta, sid);
     else if (s.type === 'counterpoint')    el = buildCounterpoint(s, meta, sid);
+    else if (s.type === 'finger_position') el = buildFingerPosition(s, meta, sid);
     else if (s.type === 'video_feature')   el = buildVideoFeature(s, meta, sid);
     else return;
     el.id = sid;

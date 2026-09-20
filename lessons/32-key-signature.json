@@ -43,7 +43,7 @@
         },
         {
           "name": "조표 — 곡 전체 적용",
-          "symbol": "plain",
+          "symbol": "key_sig_sample",
           "description": "조표는 높은음자리표 바로 옆에 붙어서, 곡 전체에서 그 음을 항상 반음 올리거나 내리라는 약속이에요.",
           "color": "b"
         }
@@ -80,10 +80,11 @@
       "items": [
         { "key": "C", "label": "다장조 (C장조)", "note": "조표 없음" },
         { "key": "G", "label": "사장조 (G장조)", "note": "파#(F#) 1개", "color": "a" },
-        { "key": "D", "label": "라장조 (D장조)", "note": "파#·도#(F#,C#) 2개", "color": "b" }
+        { "key": "D", "label": "라장조 (D장조)", "note": "파#·도#(F#,C#) 2개", "color": "b" },
+        { "key": "A", "label": "가장조 (A장조)", "note": "파#·도#·솔#(F#,C#,G#) 3개", "color": "b" }
       ],
       "compare_hint": "조표에 샵이 몇 개 붙어있는지 보면, 이 곡이 어떤 조성인지 알 수 있어요.",
-      "show_scale_demo": true,
+      "scale_demo_keys": ["G", "D", "A"],
       "color": "a"
     },
     {
@@ -111,41 +112,42 @@
     },
     {
       "type": "finger_position",
-      "title": "D현에서 직접 확인해봐요!",
-      "subtitle": "파(제자리)와 파#(샵), G장조의 조표가 바로 이 음이에요",
-      "string_label": "D현 (레 현)",
-      "compare_hint": "G장조 조표의 파#이 바로 이 음이에요! 2번 손가락을 다리 쪽으로 살짝 옮기면 파가 파#으로 바뀌어요.",
-      "positions": [
-        { "finger": "개방현", "note_kr": "레", "note_en": "D", "semitone": 0, "variant": "neutral", "freq": 293.66 },
-        { "finger": "1번", "note_kr": "미", "note_en": "E", "semitone": 2, "variant": "neutral", "freq": 329.63 },
-        { "finger": "2번(로우)", "note_kr": "파", "note_en": "F", "semitone": 3, "variant": "natural", "freq": 349.23 },
-        { "finger": "2번(하이)", "note_kr": "파#", "note_en": "F#", "semitone": 4, "variant": "sharp", "freq": 369.99 },
-        { "finger": "3번", "note_kr": "솔", "note_en": "G", "semitone": 5, "variant": "neutral", "freq": 392.00 }
-      ],
-      "color": "b"
-    },
-    {
-      "type": "features",
-      "title": "바이올린 곡에 G장조·D장조가 많은 이유",
-      "subtitle": "개방현과 조표가 잘 맞아떨어져요",
-      "items": [
+      "title": "세 손가락으로 직접 확인해봐요!",
+      "subtitle": "파#·도#·솔#, 각각 어느 현의 어느 손가락일까요?",
+      "compare_hint": "세 조표음 모두, 2번 손가락을 다리 쪽으로 살짝 옮기면(로우→하이) 제자리음이 샵으로 바뀌어요.",
+      "strings": [
         {
-          "emoji": "🎻",
-          "title": "바이올린 개방현은 G·D·A·E예요",
-          "desc": "네 개의 개방현이 모두 조표에 자주 등장하는 음들이에요."
+          "string_label": "D현 — 파#",
+          "positions": [
+            { "finger": "개방현", "note_kr": "레", "note_en": "D", "semitone": 0, "variant": "neutral", "freq": 293.66 },
+            { "finger": "1번", "note_kr": "미", "note_en": "E", "semitone": 2, "variant": "neutral", "freq": 329.63 },
+            { "finger": "2(로우)", "note_kr": "파", "note_en": "F", "semitone": 3, "variant": "natural", "freq": 349.23 },
+            { "finger": "2(하이)", "note_kr": "파#", "note_en": "F#", "semitone": 4, "variant": "sharp", "freq": 369.99 },
+            { "finger": "3번", "note_kr": "솔", "note_en": "G", "semitone": 5, "variant": "neutral", "freq": 392.00 }
+          ]
         },
         {
-          "emoji": "🎶",
-          "title": "G장조·D장조는 개방현을 많이 쓸 수 있어요",
-          "desc": "손가락을 짚지 않고 개방현만으로 연주할 수 있는 음이 많아서, 초보자도 연주하기 편해요."
+          "string_label": "A현 — 도#",
+          "positions": [
+            { "finger": "개방현", "note_kr": "라", "note_en": "A", "semitone": 0, "variant": "neutral", "freq": 440.00 },
+            { "finger": "1번", "note_kr": "시", "note_en": "B", "semitone": 2, "variant": "neutral", "freq": 493.88 },
+            { "finger": "2(로우)", "note_kr": "도", "note_en": "C", "semitone": 3, "variant": "natural", "freq": 523.25 },
+            { "finger": "2(하이)", "note_kr": "도#", "note_en": "C#", "semitone": 4, "variant": "sharp", "freq": 554.37 },
+            { "finger": "3번", "note_kr": "레", "note_en": "D", "semitone": 5, "variant": "neutral", "freq": 587.33 }
+          ]
         },
         {
-          "emoji": "📖",
-          "title": "그래서 입문곡에 자주 쓰여요",
-          "desc": "바이올린 교본에 나오는 많은 곡이 G장조나 D장조로 쓰여 있는 이유가 바로 이거예요."
+          "string_label": "E현 — 솔#",
+          "positions": [
+            { "finger": "개방현", "note_kr": "미", "note_en": "E", "semitone": 0, "variant": "neutral", "freq": 659.25 },
+            { "finger": "1번", "note_kr": "파#", "note_en": "F#", "semitone": 2, "variant": "neutral", "freq": 739.99 },
+            { "finger": "2(로우)", "note_kr": "솔", "note_en": "G", "semitone": 3, "variant": "natural", "freq": 783.99 },
+            { "finger": "2(하이)", "note_kr": "솔#", "note_en": "G#", "semitone": 4, "variant": "sharp", "freq": 830.61 },
+            { "finger": "3번", "note_kr": "라", "note_en": "A", "semitone": 5, "variant": "neutral", "freq": 880.00 }
+          ]
         }
       ],
-      "note": "다음에 조표를 보면, '아 이 곡은 개방현을 많이 쓸 수 있겠구나' 하고 예상할 수 있어요!"
+      "color": "b"
     },
     {
       "type": "features",
@@ -201,9 +203,9 @@
           "answer": 0
         },
         {
-          "q": "바이올린 곡에 G장조·D장조가 많은 이유는 무엇일까요?",
-          "options": ["가장 어려운 조성이라서", "개방현을 많이 활용할 수 있어서", "가장 시끄러운 조성이라서"],
-          "answer": 1
+          "q": "라장조(A장조)의 조표에는 샵이 몇 개 있을까요?",
+          "options": ["1개", "2개", "3개"],
+          "answer": 2
         }
       ]
     }

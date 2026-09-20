@@ -1792,10 +1792,12 @@ function playCounterpointDemo(slideId) {
    than the neighboring open-string/1st-finger gaps (2 semitones). Not to
    physical scale — just enough geometry to show "closer to the bridge =
    higher pitch" and "sharp sits a hair lower than natural". */
-function renderFingerboard(id, positions, meta) {
+function renderFingerboard(id, positions, meta, opts) {
   const container = document.getElementById(id);
   if (!container) return;
-  const unit = 34, topY = 18, stringX = 50, W = 190;
+  const o = opts || {};
+  const unit = o.unit || 34, topY = 18, stringX = o.stringX || 50, W = o.width || 190;
+  const fontSize = o.fontSize || 11.5;
   const maxSemi = Math.max(...positions.map(p => p.semitone));
   const H = topY + maxSemi * unit + 34;
   let marks = '';
@@ -1807,7 +1809,7 @@ function renderFingerboard(id, positions, meta) {
     marks += `
       <line x1="${stringX-9}" y1="${y}" x2="${stringX+9}" y2="${y}" stroke="${color}" stroke-width="2.5"/>
       <circle cx="${stringX}" cy="${y}" r="5" fill="${color}"/>
-      <text x="${stringX+18}" y="${y+4}" font-size="11.5" font-family="'Jua', sans-serif" fill="${color}">${p.finger} · ${p.note_kr}</text>
+      <text x="${stringX+18}" y="${y+4}" font-size="${fontSize}" font-family="'Jua', sans-serif" fill="${color}">${p.finger} · ${p.note_kr}</text>
     `;
   });
   container.innerHTML = `
@@ -1820,13 +1822,56 @@ function renderFingerboard(id, positions, meta) {
   `;
 }
 
+function fingerPlayButtonsHtml(positions, compact) {
+  const natPos = (positions || []).find(p => p.variant === 'natural');
+  const shpPos = (positions || []).find(p => p.variant === 'sharp');
+  const style = compact ? 'font-size:10.5px;padding:5px 4px;width:100%;' : 'font-size:12.5px;padding:7px 14px;';
+  return `
+    ${natPos ? `<button class="btn btn-ca" style="${style}" onclick="playFingerNote(${natPos.freq}, this)">▶ ${natPos.note_kr} 듣기</button>` : ''}
+    ${shpPos ? `<button class="btn btn-cb" style="${style}" onclick="playFingerNote(${shpPos.freq}, this)">▶ ${shpPos.note_kr} 듣기</button>` : ''}
+  `;
+}
+
 function buildFingerPosition(s, meta, slideId) {
   const cl = clsOf(s.color || 'a');
-  const diagId = `fp-diag-${slideId}`;
-  const natPos = (s.positions || []).find(p => p.variant === 'natural');
-  const shpPos = (s.positions || []).find(p => p.variant === 'sharp');
   const el = document.createElement('div');
   el.className = 'slide';
+
+  if (Array.isArray(s.strings) && s.strings.length) {
+    // Multiple strings shown side by side (e.g. every sharp in a key
+    // signature, each on the string where it's actually played). A CSS
+    // grid with fixed column count (not flex-wrap) keeps them on one row
+    // at any width — columns shrink together instead of wrapping to a
+    // 3rd row that pushes content below the fold.
+    const n = s.strings.length;
+    const cols = s.strings.map((str, i) => {
+      const diagId = `fp-diag-${slideId}-${i}`;
+      return { diagId, str, html: `
+        <div style="display:flex;flex-direction:column;align-items:center;gap:3px;min-width:0;">
+          <div class="staff-ornament" id="${diagId}" style="min-height:150px;width:100%;padding:2px;"></div>
+          ${str.string_label ? `<div class="staff-mini-label" style="font-size:11px;">${str.string_label}</div>` : ''}
+          <div style="display:flex;flex-direction:column;gap:3px;width:100%;">${fingerPlayButtonsHtml(str.positions, true)}</div>
+        </div>
+      ` };
+    });
+    el.innerHTML = `
+      <h1 class="slide-title" style="font-size:clamp(16px,2.4vw,22px);">🎻 ${s.title}</h1>
+      ${s.subtitle ? `<p class="slide-subtitle">${s.subtitle}</p>` : ''}
+      <div class="ornament-card ${cl}" style="max-width:680px;">
+        <div style="display:grid;grid-template-columns:repeat(${n}, minmax(0, 1fr));gap:6px;">
+          ${cols.map(c => c.html).join('')}
+        </div>
+        ${s.compare_hint ? `<div class="ornament-korean" style="margin-top:10px;">${s.compare_hint}</div>` : ''}
+      </div>
+    `;
+    cols.forEach(c => {
+      queueVexRender(() => renderFingerboard(c.diagId, c.str.positions || [], meta, { unit: 20, stringX: 22, width: 92, fontSize: 8.5 }));
+    });
+    return el;
+  }
+
+  // Single string (original layout)
+  const diagId = `fp-diag-${slideId}`;
   el.innerHTML = `
     <h1 class="slide-title" style="font-size:clamp(16px,2.4vw,22px);">🎻 ${s.title}</h1>
     ${s.subtitle ? `<p class="slide-subtitle">${s.subtitle}</p>` : ''}
@@ -1842,8 +1887,7 @@ function buildFingerPosition(s, meta, slideId) {
       </div>
     </div>
     <div class="orn-vis-wrap" style="flex-wrap:wrap;gap:10px;">
-      ${natPos ? `<button class="btn btn-ca" style="font-size:13px;padding:8px 18px;" onclick="playFingerNote(${natPos.freq}, this)">▶ ${natPos.note_kr} 듣기</button>` : ''}
-      ${shpPos ? `<button class="btn btn-cb" style="font-size:13px;padding:8px 18px;" onclick="playFingerNote(${shpPos.freq}, this)">▶ ${shpPos.note_kr} 듣기</button>` : ''}
+      ${fingerPlayButtonsHtml(s.positions)}
     </div>
   `;
   queueVexRender(() => renderFingerboard(diagId, s.positions || [], meta));
@@ -1894,29 +1938,52 @@ function renderVexKeySigRow(id, items, meta) {
   });
 }
 
+/* A single small staff — clef + a 1-sharp (G major) key signature, no
+   notes — used as the intro concept-card icon so "this is what sits next
+   to the clef" is shown, not just described in text. */
+function renderVexKeySigSample(id, color) {
+  const container = document.getElementById(id);
+  if (!container) return;
+  container.innerHTML = '';
+  const { Renderer, Stave } = Vex.Flow;
+  const W = 100, H = 90;
+  const renderer = new Renderer(container, Renderer.Backends.SVG);
+  renderer.resize(W, H);
+  const ctx = renderer.getContext();
+  const stave = new Stave(3, 18, W - 12);
+  stave.addClef('treble');
+  stave.addKeySignature('G');
+  ctx.setFillStyle(color); ctx.setStrokeStyle(color);
+  stave.setContext(ctx).draw();
+}
+
 function buildKeySignatureCompare(s, meta, slideId) {
   const cl = clsOf(s.color || 'a');
   const diagId = `ksc-diag-${slideId}`;
   const items = s.items || [];
+  const scaleKeys = s.scale_demo_keys || [];
   const el = document.createElement('div');
   el.className = 'slide';
   el.innerHTML = `
     <h1 class="slide-title" style="font-size:clamp(16px,2.4vw,22px);">🎼 ${s.title}</h1>
     ${s.subtitle ? `<p class="slide-subtitle">${s.subtitle}</p>` : ''}
-    <div class="ornament-card ${cl}" style="max-width:600px;">
-      <div class="staff-ornament" id="${diagId}" style="min-height:110px;"></div>
-      <div style="display:flex;justify-content:space-around;gap:6px;margin-top:6px;">
+    <div class="ornament-card ${cl}" style="max-width:640px;">
+      <div class="staff-ornament" id="${diagId}" style="min-height:100px;"></div>
+      <div style="display:flex;justify-content:space-around;gap:4px;margin-top:6px;">
         ${items.map(it => `
-          <div style="flex:1;text-align:center;font-size:11.5px;color:var(--text-mid);line-height:1.4;">
-            <b style="font-family:'Jua',sans-serif;font-size:13px;color:var(--text);">${it.label}</b><br>${it.note}
+          <div style="flex:1;text-align:center;font-size:11px;color:var(--text-mid);line-height:1.35;">
+            <b style="font-family:'Jua',sans-serif;font-size:12.5px;color:var(--text);white-space:nowrap;">${it.label}</b><br>${it.note}
           </div>
         `).join('')}
       </div>
       ${s.compare_hint ? `<div class="ornament-korean" style="margin-top:10px;">${s.compare_hint}</div>` : ''}
     </div>
-    ${s.show_scale_demo ? `
-      <div class="orn-vis-wrap" style="justify-content:center;">
-        <button class="btn btn-${cl}" id="${slideId}-scalebtn" style="font-size:13px;padding:8px 20px;" onclick="playScaleCompare(this)">▶ 조표 없이 vs 있게, 비교해서 듣기</button>
+    ${scaleKeys.length ? `
+      <div class="orn-vis-wrap" style="justify-content:center;flex-wrap:wrap;gap:8px;">
+        ${scaleKeys.map(k => `
+          <button class="btn btn-${cl}" style="font-size:12.5px;padding:7px 14px;"
+            onclick="playScaleCompare('${k}', this)">▶ ${SCALE_COMPARE_SETS[k].label} 비교해서 듣기</button>
+        `).join('')}
       </div>
     ` : ''}
   `;
@@ -1924,11 +1991,33 @@ function buildKeySignatureCompare(s, meta, slideId) {
   return el;
 }
 
-/* Plays a G-major scale two ways: ignoring the key signature (F natural,
-   which sounds subtly "off"/unresolved) then honoring it (F#, which
-   resolves properly) — the audible reason a key signature can't be
-   skipped, not just a rule to memorize. */
-function playScaleCompare(btn) {
+/* Each entry plays that key's major scale two ways: ignoring the key
+   signature (natural notes throughout — sounds subtly "off"/unresolved)
+   then honoring it (with its actual sharps) — the audible reason a key
+   signature can't be skipped, not just a rule to memorize. Separate
+   G/D/A buttons let a student compare one sharp at a time instead of
+   only ever hearing the busiest (3-sharp) example. */
+const SCALE_COMPARE_SETS = {
+  G: {
+    label: '파#',
+    without: [392.00, 440.00, 493.88, 523.25, 587.33, 659.25, 698.46, 783.99], // G A B C D E F  G
+    with:    [392.00, 440.00, 493.88, 523.25, 587.33, 659.25, 739.99, 783.99]  // G A B C D E F# G
+  },
+  D: {
+    label: '파#·도#',
+    without: [293.66, 329.63, 349.23, 392.00, 440.00, 493.88, 523.25, 587.33], // D E F  G A B C  D
+    with:    [293.66, 329.63, 369.99, 392.00, 440.00, 493.88, 554.37, 587.33]  // D E F# G A B C# D
+  },
+  A: {
+    label: '파#·도#·솔#',
+    without: [440.00, 493.88, 523.25, 587.33, 659.25, 698.46, 783.99, 880.00], // A B C  D E F  G  A
+    with:    [440.00, 493.88, 554.37, 587.33, 659.25, 739.99, 830.61, 880.00]  // A B C# D E F# G# A
+  }
+};
+
+function playScaleCompare(keyName, btn) {
+  const set = SCALE_COMPARE_SETS[keyName];
+  if (!set) return;
   const ctx = getAudioCtx();
   const t0 = ctx.currentTime;
   const dur = 0.3;
@@ -1944,14 +2033,12 @@ function playScaleCompare(btn) {
     g.gain.linearRampToValueAtTime(0, startT + dur);
     osc.start(startT); osc.stop(startT + dur + 0.01);
   }
-  const withoutKeySig = [392.00, 440.00, 493.88, 523.25, 587.33, 659.25, 698.46, 783.99]; // G A B C D E F  G — F natural, ignoring the key signature
-  const withKeySig    = [392.00, 440.00, 493.88, 523.25, 587.33, 659.25, 739.99, 783.99]; // G A B C D E F# G — correct G major scale
-  withoutKeySig.forEach((f, i) => schedTone(t0 + i * dur, f, 0.22));
-  const gap = withoutKeySig.length * dur + 0.4;
-  withKeySig.forEach((f, i) => schedTone(t0 + gap + i * dur, f, 0.24));
-  const totalMs = (gap + withKeySig.length * dur) * 1000;
+  set.without.forEach((f, i) => schedTone(t0 + i * dur, f, 0.22));
+  const gap = set.without.length * dur + 0.4;
+  set.with.forEach((f, i) => schedTone(t0 + gap + i * dur, f, 0.24));
+  const totalMs = (gap + set.with.length * dur) * 1000;
   setTimeout(() => {
-    if (btn) { btn.disabled = false; btn.textContent = '▶ 다시 비교해서 듣기'; }
+    if (btn) { btn.disabled = false; btn.textContent = `▶ ${set.label} 다시 비교해서 듣기`; }
   }, totalMs + 200);
 }
 
@@ -2950,7 +3037,8 @@ const VEX_SYMBOL_RENDERERS = {
   dotted_rhythm: renderVexDottedRhythm,
   timesig_badge: renderVexTimeSigBadge,
   sharp: renderVexSharp,
-  natural: renderVexNatural
+  natural: renderVexNatural,
+  key_sig_sample: renderVexKeySigSample
 };
 
 /* ── ORNAMENT BUILDER ── */

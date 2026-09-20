@@ -1227,7 +1227,7 @@ const NOTE_FREQ = {
   C4:261.63, D4:293.66, E4:329.63, F4:349.23,
   G4:392.00, A4:440.00, B4:493.88, C5:523.25,
   Eb4:311.13, Ab4:415.30, Bb4:466.16, D5:587.33,
-  Cs5:554.37
+  Cs5:554.37, Fs4:369.99
 };
 
 /* violin PeriodicWave — Fourier harmonics approximating bowed string timbre */
@@ -1865,6 +1865,94 @@ function playFingerNote(freq, btn) {
   g.gain.linearRampToValueAtTime(0, t0 + dur);
   osc.start(t0); osc.stop(t0 + dur + 0.02);
   setTimeout(() => { if (btn) btn.disabled = false; }, dur * 1000 + 150);
+}
+
+/* ── KEY SIGNATURE COMPARE ── several small staves side by side, each with
+   VexFlow's real addKeySignature() glyphs, so students see the actual
+   sharp/flat cluster that sits next to the clef instead of a description
+   of it. Text labels are plain HTML below the SVG (easier to align evenly
+   under each stave than VexFlow's own text API). */
+function renderVexKeySigRow(id, items, meta) {
+  const container = document.getElementById(id);
+  if (!container) return;
+  container.innerHTML = '';
+  const { Renderer, Stave } = Vex.Flow;
+  const staveW = 92, gap = 16;
+  const W = items.length * (staveW + gap) + 6;
+  const H = 100;
+  const renderer = new Renderer(container, Renderer.Backends.SVG);
+  renderer.resize(W, H);
+  const ctx = renderer.getContext();
+  items.forEach((it, i) => {
+    const x = 3 + i * (staveW + gap);
+    const color = it.color ? colorOf(it.color, meta) : '#5F5E5A';
+    const stave = new Stave(x, 10, staveW);
+    stave.addClef('treble');
+    if (it.key && it.key !== 'C') stave.addKeySignature(it.key);
+    ctx.setFillStyle(color); ctx.setStrokeStyle(color);
+    stave.setContext(ctx).draw();
+  });
+}
+
+function buildKeySignatureCompare(s, meta, slideId) {
+  const cl = clsOf(s.color || 'a');
+  const diagId = `ksc-diag-${slideId}`;
+  const items = s.items || [];
+  const el = document.createElement('div');
+  el.className = 'slide';
+  el.innerHTML = `
+    <h1 class="slide-title" style="font-size:clamp(16px,2.4vw,22px);">🎼 ${s.title}</h1>
+    ${s.subtitle ? `<p class="slide-subtitle">${s.subtitle}</p>` : ''}
+    <div class="ornament-card ${cl}" style="max-width:600px;">
+      <div class="staff-ornament" id="${diagId}" style="min-height:110px;"></div>
+      <div style="display:flex;justify-content:space-around;gap:6px;margin-top:6px;">
+        ${items.map(it => `
+          <div style="flex:1;text-align:center;font-size:11.5px;color:var(--text-mid);line-height:1.4;">
+            <b style="font-family:'Jua',sans-serif;font-size:13px;color:var(--text);">${it.label}</b><br>${it.note}
+          </div>
+        `).join('')}
+      </div>
+      ${s.compare_hint ? `<div class="ornament-korean" style="margin-top:10px;">${s.compare_hint}</div>` : ''}
+    </div>
+    ${s.show_scale_demo ? `
+      <div class="orn-vis-wrap" style="justify-content:center;">
+        <button class="btn btn-${cl}" id="${slideId}-scalebtn" style="font-size:13px;padding:8px 20px;" onclick="playScaleCompare(this)">▶ 조표 없이 vs 있게, 비교해서 듣기</button>
+      </div>
+    ` : ''}
+  `;
+  queueVexRender(() => renderVexKeySigRow(diagId, items, meta));
+  return el;
+}
+
+/* Plays a G-major scale two ways: ignoring the key signature (F natural,
+   which sounds subtly "off"/unresolved) then honoring it (F#, which
+   resolves properly) — the audible reason a key signature can't be
+   skipped, not just a rule to memorize. */
+function playScaleCompare(btn) {
+  const ctx = getAudioCtx();
+  const t0 = ctx.currentTime;
+  const dur = 0.3;
+  if (btn) { btn.disabled = true; btn.textContent = '▶ 재생 중...'; }
+  function schedTone(startT, freq, gain) {
+    const osc = ctx.createOscillator(), g = ctx.createGain();
+    osc.connect(g); g.connect(ctx.destination);
+    osc.setPeriodicWave(getViolinWave(ctx));
+    osc.frequency.setValueAtTime(freq, startT);
+    g.gain.setValueAtTime(0, startT);
+    g.gain.linearRampToValueAtTime(gain, startT + 0.015);
+    g.gain.setValueAtTime(gain, startT + dur - 0.06);
+    g.gain.linearRampToValueAtTime(0, startT + dur);
+    osc.start(startT); osc.stop(startT + dur + 0.01);
+  }
+  const withoutKeySig = [392.00, 440.00, 493.88, 523.25, 587.33, 659.25, 698.46, 783.99]; // G A B C D E F  G — F natural, ignoring the key signature
+  const withKeySig    = [392.00, 440.00, 493.88, 523.25, 587.33, 659.25, 739.99, 783.99]; // G A B C D E F# G — correct G major scale
+  withoutKeySig.forEach((f, i) => schedTone(t0 + i * dur, f, 0.22));
+  const gap = withoutKeySig.length * dur + 0.4;
+  withKeySig.forEach((f, i) => schedTone(t0 + gap + i * dur, f, 0.24));
+  const totalMs = (gap + withKeySig.length * dur) * 1000;
+  setTimeout(() => {
+    if (btn) { btn.disabled = false; btn.textContent = '▶ 다시 비교해서 듣기'; }
+  }, totalMs + 200);
 }
 
 /* ── CHORD GALLERY BUILDER ── multiple root pairs (major/minor), each with
@@ -4638,6 +4726,7 @@ function loadLesson(data) {
     else if (s.type === 'chord_gallery')   el = buildChordGallery(s, meta, sid);
     else if (s.type === 'counterpoint')    el = buildCounterpoint(s, meta, sid);
     else if (s.type === 'finger_position') el = buildFingerPosition(s, meta, sid);
+    else if (s.type === 'key_signature_compare') el = buildKeySignatureCompare(s, meta, sid);
     else if (s.type === 'video_feature')   el = buildVideoFeature(s, meta, sid);
     else return;
     el.id = sid;

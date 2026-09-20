@@ -1921,16 +1921,20 @@ function renderVexKeySigRow(id, items, meta) {
   if (!container) return;
   container.innerHTML = '';
   const { Renderer, Stave } = Vex.Flow;
-  const staveW = 92, gap = 16;
+  // y=32 / H=140 gives the clef glyph the same headroom as every other
+  // single-stave renderer in this file (renderVexTriad, renderVexAccidentalNote) —
+  // the earlier y=10/H=100 version was too short and cropped the clef's
+  // ascender against the top edge, which read as the image being "잘림"(cut off).
+  const staveW = 84, gap = 8;
   const W = items.length * (staveW + gap) + 6;
-  const H = 100;
+  const H = 140;
   const renderer = new Renderer(container, Renderer.Backends.SVG);
   renderer.resize(W, H);
   const ctx = renderer.getContext();
   items.forEach((it, i) => {
     const x = 3 + i * (staveW + gap);
     const color = it.color ? colorOf(it.color, meta) : '#5F5E5A';
-    const stave = new Stave(x, 10, staveW);
+    const stave = new Stave(x, 32, staveW);
     stave.addClef('treble');
     if (it.key && it.key !== 'C') stave.addKeySignature(it.key);
     ctx.setFillStyle(color); ctx.setStrokeStyle(color);
@@ -1940,17 +1944,19 @@ function renderVexKeySigRow(id, items, meta) {
 
 /* A single small staff — clef + a 1-sharp (G major) key signature, no
    notes — used as the intro concept-card icon so "this is what sits next
-   to the clef" is shown, not just described in text. */
+   to the clef" is shown, not just described in text. Sized to match the
+   other concept-card icon renderers (W=120/H=140, stave y=28) so it
+   doesn't crop the clef the way a shorter canvas did before. */
 function renderVexKeySigSample(id, color) {
   const container = document.getElementById(id);
   if (!container) return;
   container.innerHTML = '';
   const { Renderer, Stave } = Vex.Flow;
-  const W = 100, H = 90;
+  const W = 120, H = 140;
   const renderer = new Renderer(container, Renderer.Backends.SVG);
   renderer.resize(W, H);
   const ctx = renderer.getContext();
-  const stave = new Stave(3, 18, W - 12);
+  const stave = new Stave(5, 28, W - 20);
   stave.addClef('treble');
   stave.addKeySignature('G');
   ctx.setFillStyle(color); ctx.setStrokeStyle(color);

@@ -1343,7 +1343,7 @@ function buildIntro(s, meta, slideId) {
   el.className = 'slide';
   const cA = meta.color_a, cB = meta.color_b;
   el.innerHTML = `
-    <span class="character">${s.emoji}</span>
+    ${s.emoji ? `<span class="character">${s.emoji}</span>` : ''}
     <h1 class="slide-title">${s.title}</h1>
     <p class="slide-subtitle">${s.subtitle}</p>
     <div class="concept-cards">
@@ -2046,6 +2046,278 @@ function playScaleCompare(keyName, btn) {
   setTimeout(() => {
     if (btn) { btn.disabled = false; btn.textContent = `▶ ${set.label} 다시 비교해서 듣기`; }
   }, totalMs + 200);
+}
+
+/* ── ACCIDENTAL WALKTHROUGH ── a real key-signed staff split into measures
+   ("방"), walked one note at a time. Each note's actual pitch is derived,
+   not hand-written: an accidental ("쪽지") sets that note position for the
+   rest of its measure, a barline ("방문") drops every 쪽지, and with no
+   쪽지 the key signature ("집 약속") decides. mode:"step" reveals as you
+   go; mode:"guess" asks the student to pick the pitch first.
+   Note spec strings: "c/5", "c/5:n", "g/5:#". */
+const WT_KEY_SHARPS = { C: [], G: ['f'], D: ['f', 'c'], A: ['f', 'c', 'g'] };
+const WT_NAME = { c: '도', d: '레', e: '미', f: '파', g: '솔', a: '라', b: '시' };
+const WT_SEMI = { c: 0, d: 2, e: 4, f: 5, g: 7, a: 9, b: 11 };
+const WT_STATE = {};
+
+function wtAnalyze(measures, key) {
+  const sharps = WT_KEY_SHARPS[key] || [];
+  const out = [];
+  let dropped = {};
+  measures.forEach((m, mi) => {
+    const memo = {};
+    m.forEach((spec, ni) => {
+      const [pos, acc] = spec.split(':');
+      const letter = pos[0], oct = parseInt(pos.split('/')[1], 10);
+      const name = WT_NAME[letter];
+      let sharp, why;
+      if (acc) {
+        memo[pos] = acc;
+        sharp = acc === '#';
+        why = acc === '#' ? `샵(#) 쪽지가 붙었어요. 이 방에서는 ${name}#!`
+                          : `제자리표(♮) 쪽지가 붙었어요. 이 방에서는 ${name}!`;
+      } else if (memo[pos]) {
+        sharp = memo[pos] === '#';
+        why = `표시는 없지만 같은 방이에요. 쪽지가 아직 살아 있어서 ${name}${sharp ? '#' : ''}!`;
+      } else {
+        sharp = sharps.includes(letter);
+        if (dropped[pos]) {
+          why = `방문(마디줄)을 나왔어요. 쪽지는 사라지고 집 약속(조표)대로 ${name}${sharp ? '#' : ''}!`;
+          delete dropped[pos];
+        } else if (sharp) {
+          why = `이 방에는 쪽지가 없어요. 집 약속(조표)대로 ${name}#!`;
+        } else {
+          why = `조표에 ${name}#은 없어요. 그냥 ${name}!`;
+        }
+      }
+      const midi = 12 * (oct + 1) + WT_SEMI[letter] + (sharp ? 1 : 0);
+      out.push({
+        m: mi, n: ni, pos, acc: acc || null, letter,
+        label: name + (sharp ? '#' : ''),
+        freq: 440 * Math.pow(2, (midi - 69) / 12),
+        why,
+        memo: Object.entries(memo).map(([p, a]) => WT_NAME[p[0]] + (a === '#' ? '#' : '♮')),
+        choices: [name, name + '#']
+      });
+    });
+    // only the room just left can "drop" a 쪽지 — explained on its next use
+    dropped = {};
+    Object.keys(memo).forEach(p => { dropped[p] = true; });
+  });
+  return out;
+}
+
+function renderWalkthroughStaff(sid) {
+  const st = WT_STATE[sid];
+  const container = document.getElementById(`wt-staff-${sid}`);
+  if (!st || !container) return;
+  container.innerHTML = '';
+  const { Renderer, Stave, StaveNote, Voice, Formatter, Accidental, Barline } = Vex.Flow;
+  const measures = st.measures;
+  const perNote = 62;
+  const widths = measures.map((m, i) => (i === 0 ? 70 + (WT_KEY_SHARPS[st.key] || []).length * 11 : 18) + m.length * perNote + 6);
+  const W = widths.reduce((a, b) => a + b, 0) + 10;
+  const H = 124;
+  const renderer = new Renderer(container, Renderer.Backends.SVG);
+  renderer.resize(W, H);
+  const ctx = renderer.getContext();
+  const light = st.light, strong = st.color, ink = '#3A3833', dim = '#B8B5AE';
+  const curM = st.cur >= 0 && st.notes[st.cur] ? st.notes[st.cur].m : -1;
+
+  let x = 5, flat = 0;
+  const staves = measures.map((m, mi) => {
+    const stave = new Stave(x, 6, widths[mi]);
+    if (mi === 0) { stave.addClef('treble'); if (st.key !== 'C') stave.addKeySignature(st.key); }
+    if (mi === measures.length - 1) stave.setEndBarType(Barline.type.END);
+    x += widths[mi];
+    return stave;
+  });
+  // room shading behind the current measure, drawn first so it sits underneath
+  if (curM >= 0) {
+    const sv = staves[curM];
+    const x0 = curM === 0 ? sv.getNoteStartX() - 6 : sv.getX();
+    const top = sv.getYForLine(0) - 36, bot = sv.getYForLine(4) + 14;
+    ctx.save(); ctx.setFillStyle(light);
+    ctx.fillRect(x0, top, sv.getX() + sv.getWidth() - x0, bot - top);
+    ctx.restore();
+  }
+  staves.forEach((stave, mi) => {
+    ctx.setFillStyle(ink); ctx.setStrokeStyle(ink);
+    stave.setContext(ctx).draw();
+    const notes = measures[mi].map(() => {
+      const info = st.notes[flat];
+      const vn = new StaveNote({ keys: [info.pos], duration: 'q', auto_stem: true });
+      let color = ink;
+      if (flat === st.cur) color = strong;
+      else if (st.mode === 'guess' && flat > st.cur) color = dim;
+      if (info.acc) {
+        const a = new Accidental(info.acc === '#' ? '#' : 'n');
+        a.setStyle({ fillStyle: color, strokeStyle: color });
+        vn.addModifier(a, 0);
+      }
+      vn.setStyle({ fillStyle: color, strokeStyle: color });
+      vn._wtIdx = flat++;
+      return vn;
+    });
+    const voice = new Voice({ num_beats: notes.length, beat_value: 4 }).setStrict(false).addTickables(notes);
+    new Formatter().joinVoices([voice]).formatToStave([voice], stave);
+    voice.draw(ctx, stave);
+    // pitch labels above revealed notes
+    notes.forEach(vn => {
+      const i = vn._wtIdx;
+      const shown = st.mode === 'step' ? i <= st.cur : (i < st.cur || (i === st.cur && st.answered));
+      const isCur = i === st.cur;
+      const txt = shown ? st.notes[i].label : (isCur ? '?' : '');
+      if (!txt) return;
+      const cx = vn.getAbsoluteX() + 6;
+      ctx.save();
+      ctx.setFont('Jua, sans-serif', isCur ? 15 : 13, isCur ? 'bold' : 'normal');
+      ctx.setFillStyle(isCur ? strong : '#6A675F');
+      ctx.fillText(txt, cx - (txt.length > 1 ? 9 : 6), stave.getYForLine(0) - 20);
+      ctx.restore();
+    });
+    // room number under each measure
+    const lx = mi === 0 ? stave.getNoteStartX() : stave.getX();
+    const cx = (lx + stave.getX() + stave.getWidth()) / 2;
+    ctx.save();
+    ctx.setFont('Jua, sans-serif', 11.5, 'normal');
+    ctx.setFillStyle(mi === curM ? strong : '#8A877F');
+    ctx.fillText(`${mi + 1}번 방`, cx - 16, stave.getYForLine(4) + 30);
+    ctx.restore();
+  });
+  const svg = container.querySelector('svg');
+  if (svg) {
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    svg.style.width = '100%'; svg.style.maxWidth = `${Math.round(W * 1.15)}px`; svg.style.height = 'auto';
+  }
+}
+
+function wtPanelHtml(sid) {
+  const st = WT_STATE[sid];
+  const info = st.notes[st.cur];
+  const chip = (label, val, on) => `
+    <div style="flex:1;min-width:0;border:1.5px solid ${on ? st.color : 'var(--border, #DDD)'};border-radius:10px;padding:6px 8px;background:${on ? st.light : 'transparent'};">
+      <div style="font-size:11px;color:var(--text-mid);">${label}</div>
+      <div style="font-family:'Jua',sans-serif;font-size:15px;color:var(--text);">${val}</div>
+    </div>`;
+  const keyText = (WT_KEY_SHARPS[st.key] || []).map(l => WT_NAME[l] + '#').join('·') || '없음';
+  const revealed = info && (st.mode === 'step' || st.answered);
+  const memoText = revealed ? (info.memo.length ? info.memo.join('·') : '없음') : (info ? '?' : '—');
+  let msg;
+  if (!info) msg = st.mode === 'step' ? '‘다음 음 ▶’을 눌러서 한 음씩 따라가 봐요.' : '';
+  else if (st.mode === 'step') msg = `<b style="color:${st.color};">${info.label}</b> — ${info.why}`;
+  else if (!st.answered) msg = `색칠된 음표는 무슨 음일까요? 방 안에 쪽지가 있는지 먼저 살펴봐요.`;
+  else msg = `<b style="color:${st.lastOk ? st.color : '#B0413E'};">${st.lastOk ? '정답!' : '아쉬워요!'}</b> ${info.why}`;
+  return `
+    <div style="display:flex;gap:6px;margin-top:4px;">
+      ${chip('집 약속 (조표)', keyText, false)}
+      ${chip('이 방의 쪽지 (임시표)', memoText, revealed && info.memo.length > 0)}
+    </div>
+    <div class="ornament-korean" style="margin-top:8px;min-height:44px;">${msg}</div>`;
+}
+
+function wtControlsHtml(sid) {
+  const st = WT_STATE[sid];
+  const cl = st.cls;
+  const total = st.notes.length;
+  if (st.mode === 'step') {
+    const atEnd = st.cur >= total - 1;
+    return `
+      <button class="btn" style="font-size:12.5px;padding:7px 14px;" onclick="wtReset('${sid}')">처음부터</button>
+      <button class="btn btn-${cl}" style="font-size:13px;padding:7px 16px;" ${atEnd ? 'disabled' : ''} onclick="wtNext('${sid}')">다음 음 ▶</button>
+      <button class="btn" style="font-size:12.5px;padding:7px 14px;" onclick="wtPlayAll('${sid}', this)">▶ 전체 듣기</button>`;
+  }
+  const info = st.notes[st.cur];
+  if (st.done) {
+    return `<div style="font-family:'Jua',sans-serif;font-size:16px;width:100%;text-align:center;">다 풀었어요! ${total}개 중 <b style="color:${st.color};">${st.score}개</b> 정답</div>
+      <button class="btn btn-${cl}" style="font-size:13px;padding:7px 16px;" onclick="wtReset('${sid}')">다시 하기</button>`;
+  }
+  if (!st.answered) {
+    return info.choices.map(c => `
+      <button class="btn btn-${cl}" style="font-size:16px;padding:8px 22px;font-family:'Jua',sans-serif;" onclick="wtGuess('${sid}', '${c}')">${c}</button>`).join('');
+  }
+  return `<span style="font-size:12.5px;color:var(--text-mid);">${st.cur + 1} / ${total} · 맞힌 개수 ${st.score}</span>
+    <button class="btn btn-${cl}" style="font-size:13px;padding:7px 16px;" onclick="wtNext('${sid}')">${st.cur >= total - 1 ? '결과 보기' : '다음 문제 ▶'}</button>`;
+}
+
+function wtRefresh(sid) {
+  const panel = document.getElementById(`wt-panel-${sid}`);
+  const ctr = document.getElementById(`wt-ctrl-${sid}`);
+  if (panel) panel.innerHTML = wtPanelHtml(sid);
+  if (ctr) ctr.innerHTML = wtControlsHtml(sid);
+  renderWalkthroughStaff(sid);
+}
+
+function wtNext(sid) {
+  const st = WT_STATE[sid];
+  if (!st) return;
+  if (st.mode === 'step') {
+    if (st.cur >= st.notes.length - 1) return;
+    st.cur++;
+    playFingerNote(st.notes[st.cur].freq);
+  } else {
+    if (st.cur >= st.notes.length - 1) { st.done = true; }
+    else { st.cur++; st.answered = false; }
+  }
+  wtRefresh(sid);
+}
+
+function wtGuess(sid, choice) {
+  const st = WT_STATE[sid];
+  if (!st || st.answered) return;
+  const info = st.notes[st.cur];
+  st.answered = true;
+  st.lastOk = choice === info.label;
+  if (st.lastOk) st.score++;
+  playFingerNote(info.freq);
+  wtRefresh(sid);
+}
+
+function wtReset(sid) {
+  const st = WT_STATE[sid];
+  if (!st) return;
+  if (st.timer) { clearTimeout(st.timer); st.timer = null; }
+  st.cur = st.mode === 'step' ? -1 : 0;
+  st.answered = false; st.score = 0; st.done = false;
+  wtRefresh(sid);
+}
+
+function wtPlayAll(sid, btn) {
+  const st = WT_STATE[sid];
+  if (!st) return;
+  if (st.timer) clearTimeout(st.timer);
+  st.cur = -1;
+  const step = () => {
+    if (st.cur >= st.notes.length - 1) { st.timer = null; return; }
+    wtNext(sid);
+    st.timer = setTimeout(step, 1100);
+  };
+  step();
+}
+
+function buildAccidentalWalkthrough(s, meta, slideId) {
+  const c = s.color || 'a';
+  const el = document.createElement('div');
+  el.className = 'slide';
+  const measures = s.measures || [];
+  const mode = s.mode === 'guess' ? 'guess' : 'step';
+  WT_STATE[slideId] = {
+    mode, key: s.key || 'C', measures,
+    notes: wtAnalyze(measures, s.key || 'C'),
+    cur: mode === 'step' ? -1 : 0, answered: false, score: 0, done: false,
+    color: colorOf(c, meta), light: meta[`color_${c}_light`] || '#F2F2F2', cls: clsOf(c)
+  };
+  el.innerHTML = `
+    <h1 class="slide-title" style="font-size:clamp(16px,2.4vw,22px);">${s.title}</h1>
+    ${s.subtitle ? `<p class="slide-subtitle">${s.subtitle}</p>` : ''}
+    <div class="ornament-card ${clsOf(c)}" style="max-width:640px;">
+      <div class="staff-ornament" id="wt-staff-${slideId}" style="min-height:120px;padding:4px;"></div>
+      <div id="wt-panel-${slideId}">${wtPanelHtml(slideId)}</div>
+    </div>
+    <div class="orn-vis-wrap" id="wt-ctrl-${slideId}" style="justify-content:center;align-items:center;flex-wrap:wrap;gap:8px;">${wtControlsHtml(slideId)}</div>
+  `;
+  queueVexRender(() => renderWalkthroughStaff(slideId));
+  return el;
 }
 
 /* ── CHORD GALLERY BUILDER ── multiple root pairs (major/minor), each with
@@ -4821,6 +5093,7 @@ function loadLesson(data) {
     else if (s.type === 'counterpoint')    el = buildCounterpoint(s, meta, sid);
     else if (s.type === 'finger_position') el = buildFingerPosition(s, meta, sid);
     else if (s.type === 'key_signature_compare') el = buildKeySignatureCompare(s, meta, sid);
+    else if (s.type === 'accidental_walkthrough') el = buildAccidentalWalkthrough(s, meta, sid);
     else if (s.type === 'video_feature')   el = buildVideoFeature(s, meta, sid);
     else return;
     el.id = sid;

@@ -1975,7 +1975,7 @@ function buildKeySignatureCompare(s, meta, slideId) {
     ${s.subtitle ? `<p class="slide-subtitle">${s.subtitle}</p>` : ''}
     <div class="ornament-card ${cl}" style="max-width:640px;">
       <div class="staff-ornament" id="${diagId}" style="min-height:100px;"></div>
-      <div style="display:flex;justify-content:space-around;gap:4px;margin-top:6px;">
+      <div style="display:flex;justify-content:space-around;gap:4px;margin:6px auto 0;max-width:${items.length * 92 + 6}px;">
         ${items.map(it => `
           <div style="flex:1;text-align:center;font-size:11px;color:var(--text-mid);line-height:1.35;">
             <b style="font-family:'Jua',sans-serif;font-size:12.5px;color:var(--text);white-space:nowrap;">${it.label}</b><br>${it.note}
@@ -2053,15 +2053,45 @@ function playScaleCompare(keyName, btn) {
    not hand-written: an accidental ("쪽지") sets that note position for the
    rest of its measure, a barline ("방문") drops every 쪽지, and with no
    쪽지 the key signature ("집 약속") decides. mode:"step" reveals as you
-   go; mode:"guess" asks the student to pick the pitch first.
-   Note spec strings: "c/5", "c/5:n", "g/5:#". */
-const WT_KEY_SHARPS = { C: [], G: ['f'], D: ['f', 'c'], A: ['f', 'c', 'g'] };
+   go; mode:"guess" asks the student to pick the pitch first;
+   mode:"finger_guess" asks where on the A string to press it instead.
+   With "fingerboard":"A" a string diagram follows along under the staff.
+   Note spec strings: "c/5", "c/5:n", "g/5:#", "b/4:b". */
+const WT_KEY_ACC = {
+  C: {}, G: { f: '#' }, D: { f: '#', c: '#' }, A: { f: '#', c: '#', g: '#' },
+  F: { b: 'b' }, Bb: { b: 'b', e: 'b' }
+};
+const WT_SYM = { '#': '#', b: '♭', n: '' };
+/* A string, first position — every spot a beginner uses. Hints only say
+   which neighbor the finger touches (붙여요) or leaves a gap from (떼요),
+   the wording the teacher uses. 2nd and 4th fingers are measured against
+   the 3rd (레), which never moves, so a hint reads the same whatever
+   note came before it. */
+const A_STRING_SPOTS = [
+  { label: '라',  semi: 0, finger: '개방현', freq: 440.00, hint: '손가락을 누르지 않아요. 개방현이에요.' },
+  { label: '시♭', semi: 1, finger: '1번', freq: 466.16, hint: '1번 손가락을 개방현(라)에 바짝 붙여요.' },
+  { label: '시',  semi: 2, finger: '1번', freq: 493.88, hint: '1번 손가락을 개방현(라)에서 떼요.' },
+  { label: '도',  semi: 3, finger: '2번', freq: 523.25, hint: '2번 손가락을 3번(레)에서 떼요.' },
+  { label: '도#', semi: 4, finger: '2번', freq: 554.37, hint: '2번 손가락을 3번(레)에 붙여요.' },
+  { label: '레',  semi: 5, finger: '3번', freq: 587.33, hint: '3번 손가락은 늘 같은 자리예요.' },
+  { label: '미♭', semi: 6, finger: '4번', freq: 622.25, hint: '4번 손가락을 3번(레)에 붙여요.' },
+  { label: '미',  semi: 7, finger: '4번', freq: 659.25, hint: '4번 손가락을 3번(레)에서 떼요.' }
+];
+const FINGERBOARDS = { A: A_STRING_SPOTS };
 const WT_NAME = { c: '도', d: '레', e: '미', f: '파', g: '솔', a: '라', b: '시' };
 const WT_SEMI = { c: 0, d: 2, e: 4, f: 5, g: 7, a: 9, b: 11 };
 const WT_STATE = {};
 
 function wtAnalyze(measures, key) {
-  const sharps = WT_KEY_SHARPS[key] || [];
+  const keyAcc = WT_KEY_ACC[key] || {};
+  // the alteration each letter can take in this piece (from the key
+  // signature, else from any accidental on it) — sets the two answer
+  // choices and the "조표에 X은 없어요" wording
+  const altOf = { ...keyAcc };
+  measures.flat().forEach(spec => {
+    const [pos, acc] = spec.split(':');
+    if (acc && acc !== 'n' && !altOf[pos[0]]) altOf[pos[0]] = acc;
+  });
   const out = [];
   let dropped = {};
   measures.forEach((m, mi) => {
@@ -2070,34 +2100,37 @@ function wtAnalyze(measures, key) {
       const [pos, acc] = spec.split(':');
       const letter = pos[0], oct = parseInt(pos.split('/')[1], 10);
       const name = WT_NAME[letter];
-      let sharp, why;
+      const alt = altOf[letter] || '#';
+      let eff, why;
       if (acc) {
         memo[pos] = acc;
-        sharp = acc === '#';
-        why = acc === '#' ? `샵(#) 쪽지가 붙었어요. 이 방에서는 ${name}#!`
-                          : `제자리표(♮) 쪽지가 붙었어요. 이 방에서는 ${name}!`;
+        eff = acc;
+        const kind = acc === '#' ? '샵(#)' : acc === 'b' ? '플랫(♭)' : '제자리표(♮)';
+        why = `${kind} 쪽지가 붙었어요. 이 방에서는 ${name}${WT_SYM[eff]}!`;
       } else if (memo[pos]) {
-        sharp = memo[pos] === '#';
-        why = `표시는 없지만 같은 방이에요. 쪽지가 아직 살아 있어서 ${name}${sharp ? '#' : ''}!`;
+        eff = memo[pos];
+        why = `표시는 없지만 같은 방이에요. 쪽지가 아직 살아 있어서 ${name}${WT_SYM[eff]}!`;
       } else {
-        sharp = sharps.includes(letter);
+        eff = keyAcc[letter] || 'n';
         if (dropped[pos]) {
-          why = `방문(마디줄)을 나왔어요. 쪽지는 사라지고 집 약속(조표)대로 ${name}${sharp ? '#' : ''}!`;
+          why = `방문(마디줄)을 나왔어요. 쪽지는 사라지고 집 약속(조표)대로 ${name}${WT_SYM[eff]}!`;
           delete dropped[pos];
-        } else if (sharp) {
-          why = `이 방에는 쪽지가 없어요. 집 약속(조표)대로 ${name}#!`;
+        } else if (eff !== 'n') {
+          why = `이 방에는 쪽지가 없어요. 집 약속(조표)대로 ${name}${WT_SYM[eff]}!`;
         } else {
-          why = `조표에 ${name}#은 없어요. 그냥 ${name}!`;
+          why = `조표에 ${name}${WT_SYM[alt]}은 없어요. 그냥 ${name}!`;
         }
       }
-      const midi = 12 * (oct + 1) + WT_SEMI[letter] + (sharp ? 1 : 0);
+      const shift = eff === '#' ? 1 : eff === 'b' ? -1 : 0;
+      const midi = 12 * (oct + 1) + WT_SEMI[letter] + shift;
+      const altName = name + WT_SYM[alt];
       out.push({
         m: mi, n: ni, pos, acc: acc || null, letter,
-        label: name + (sharp ? '#' : ''),
+        label: name + WT_SYM[eff],
         freq: 440 * Math.pow(2, (midi - 69) / 12),
-        why,
-        memo: Object.entries(memo).map(([p, a]) => WT_NAME[p[0]] + (a === '#' ? '#' : '♮')),
-        choices: [name, name + '#']
+        why, ruleful: !!altOf[letter],
+        memo: Object.entries(memo).map(([p, a]) => WT_NAME[p[0]] + (a === 'n' ? '♮' : WT_SYM[a])),
+        choices: alt === 'b' ? [altName, name] : [name, altName]
       });
     });
     // only the room just left can "drop" a 쪽지 — explained on its next use
@@ -2105,6 +2138,54 @@ function wtAnalyze(measures, key) {
     Object.keys(memo).forEach(p => { dropped[p] = true; });
   });
   return out;
+}
+
+/* Horizontal string diagram (nut on the left, one step per semitone) so
+   붙여요/떼요 reads as a short/long gap. spots: subset of FINGERBOARDS.
+   o: { highlight, reveal(label)->bool, onclick(label)->js|null, gaps,
+        accent, strong, wrong } */
+function fingerboardSvg(spots, o) {
+  const unit = 42, x0 = 40, y = 38;
+  const W = x0 + 7 * unit + 22, H = o.gaps ? 94 : 72;
+  const ink = '#3A3833';
+  const sorted = spots.slice().sort((a, b) => a.semi - b.semi);
+  let g = `
+    <text x="${x0 - 14}" y="${y + 4}" font-size="11" text-anchor="end" fill="#8A877F" font-family="'Jua', sans-serif">A현</text>
+    <rect x="${x0 - 10}" y="${y - 14}" width="6" height="28" rx="1.5" fill="#5A4A3A"/>
+    <line x1="${x0 - 4}" y1="${y}" x2="${W - 4}" y2="${y}" stroke="#B8860B" stroke-width="3"/>`;
+  if (o.gaps) {
+    for (let i = 1; i < sorted.length; i++) {
+      const a = sorted[i - 1], b = sorted[i];
+      const xa = x0 + a.semi * unit, xb = x0 + b.semi * unit;
+      const close = b.semi - a.semi === 1;
+      const col = close ? o.accent : '#8A877F';
+      g += `
+        <path d="M${xa + 5} ${y + 30} v5 H${xb - 5} v-5" fill="none" stroke="${col}" stroke-width="1.4"/>
+        <text x="${(xa + xb) / 2}" y="${y + 50}" font-size="10.5" text-anchor="middle" fill="${col}" font-family="'Jua', sans-serif">${close ? '붙여요' : '떼요'}</text>`;
+    }
+  }
+  sorted.forEach(sp => {
+    const x = x0 + sp.semi * unit;
+    const hl = sp.label === o.highlight;
+    const wrong = sp.label === o.wrong;
+    const altered = /[♭#]/.test(sp.label);
+    const col = hl ? o.strong : wrong ? '#B0413E' : altered ? o.accent : ink;
+    const r = hl ? 9 : 6.5;
+    const dot = sp.semi === 0
+      ? `<circle cx="${x}" cy="${y}" r="${r}" fill="#FFF" stroke="${col}" stroke-width="2.2"/>`
+      : `<circle cx="${x}" cy="${y}" r="${r}" fill="${col}"/>`;
+    const ring = hl ? `<circle cx="${x}" cy="${y}" r="14" fill="none" stroke="${o.strong}" stroke-width="2" opacity="0.45"/>` : '';
+    const name = o.reveal(sp.label) ? sp.label : '';
+    const click = o.onclick ? o.onclick(sp.label) : null;
+    g += `
+      <g ${click ? `style="cursor:pointer" onclick="${click}"` : ''}>
+        <rect x="${x - unit / 2}" y="0" width="${unit}" height="${y + 28}" fill="transparent"/>
+        ${ring}${dot}
+        <text x="${x}" y="${y - 17}" font-size="${hl ? 15 : 13}" text-anchor="middle" fill="${col}" font-family="'Jua', sans-serif">${name}</text>
+        <text x="${x}" y="${y + 24}" font-size="10" text-anchor="middle" fill="${hl ? o.strong : '#8A877F'}" font-family="'Jua', sans-serif">${sp.finger}</text>
+      </g>`;
+  });
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:${Math.round(W * 1.2)}px;height:auto;display:block;margin:0 auto;">${g}</svg>`;
 }
 
 function renderWalkthroughStaff(sid) {
@@ -2115,9 +2196,11 @@ function renderWalkthroughStaff(sid) {
   const { Renderer, Stave, StaveNote, Voice, Formatter, Accidental, Barline } = Vex.Flow;
   const measures = st.measures;
   const perNote = 62;
-  const widths = measures.map((m, i) => (i === 0 ? 70 + (WT_KEY_SHARPS[st.key] || []).length * 11 : 18) + m.length * perNote + 6);
+  const widths = measures.map((m, i) => (i === 0 ? 70 + Object.keys(WT_KEY_ACC[st.key] || {}).length * 11 : 18) + m.length * perNote + 6);
   const W = widths.reduce((a, b) => a + b, 0) + 10;
-  const H = 124;
+  // finger step mode has no 쪽지 rules to show, so no rooms: shorter canvas
+  const rooms = !(st.spots && st.mode === 'step');
+  const H = rooms ? 124 : 100;
   const renderer = new Renderer(container, Renderer.Backends.SVG);
   renderer.resize(W, H);
   const ctx = renderer.getContext();
@@ -2133,7 +2216,7 @@ function renderWalkthroughStaff(sid) {
     return stave;
   });
   // room shading behind the current measure, drawn first so it sits underneath
-  if (curM >= 0) {
+  if (curM >= 0 && rooms) {
     const sv = staves[curM];
     const x0 = curM === 0 ? sv.getNoteStartX() - 6 : sv.getX();
     const top = sv.getYForLine(0) - 36, bot = sv.getYForLine(4) + 14;
@@ -2149,9 +2232,9 @@ function renderWalkthroughStaff(sid) {
       const vn = new StaveNote({ keys: [info.pos], duration: 'q', auto_stem: true });
       let color = ink;
       if (flat === st.cur) color = strong;
-      else if (st.mode === 'guess' && flat > st.cur) color = dim;
+      else if (st.mode !== 'step' && flat > st.cur) color = dim;
       if (info.acc) {
-        const a = new Accidental(info.acc === '#' ? '#' : 'n');
+        const a = new Accidental(info.acc);
         a.setStyle({ fillStyle: color, strokeStyle: color });
         vn.addModifier(a, 0);
       }
@@ -2177,6 +2260,7 @@ function renderWalkthroughStaff(sid) {
       ctx.restore();
     });
     // room number under each measure
+    if (!rooms) return;
     const lx = mi === 0 ? stave.getNoteStartX() : stave.getX();
     const cx = (lx + stave.getX() + stave.getWidth()) / 2;
     ctx.save();
@@ -2188,20 +2272,46 @@ function renderWalkthroughStaff(sid) {
   const svg = container.querySelector('svg');
   if (svg) {
     svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
-    svg.style.width = '100%'; svg.style.maxWidth = `${Math.round(W * 1.15)}px`; svg.style.height = 'auto';
+    svg.style.width = '100%'; svg.style.height = 'auto';
+    // .staff-ornament svg forces max-width:100% !important — finger modes
+    // need a real cap so the string diagram below still fits on screen
+    if (st.spots) svg.style.setProperty('max-width', `${Math.round(W * 0.85)}px`, 'important');
   }
 }
 
 function wtPanelHtml(sid) {
   const st = WT_STATE[sid];
   const info = st.notes[st.cur];
+  const answered = st.mode === 'step' || st.answered;
+  if (st.spots) {
+    const spotOf = l => st.spots.find(sp => sp.label === l);
+    const cur = info && spotOf(info.label);
+    const used = st.notes.map(n => n.label);
+    const board = fingerboardSvg(st.mode === 'step' ? st.spots.filter(sp => used.includes(sp.label)) : st.spots, {
+      highlight: info && answered ? info.label : null,
+      wrong: st.mode !== 'step' && st.answered && !st.lastOk ? st.lastChoice : null,
+      reveal: l => st.mode === 'step' || (st.answered && (l === info.label || l === st.lastChoice)),
+      onclick: st.mode === 'finger_guess' && !st.answered && !st.done ? (l => `wtGuess('${sid}','${l}')`) : null,
+      // in the game, tinting ♭/# dots would give the answer away
+      gaps: st.mode === 'step', accent: st.mode === 'step' ? st.accent : '#3A3833', strong: st.color
+    });
+    let msg;
+    if (!info) msg = '‘다음 음 ▶’을 눌러서 한 음씩 따라가 봐요.';
+    else if (st.mode === 'step') msg = `<b style="color:${st.color};">${info.label}</b> — ${cur ? cur.hint : ''}`;
+    else if (!st.answered) msg = '색칠된 음표는 어디를 짚을까요? 아래 그림에서 직접 눌러봐요.';
+    else msg = `<b style="color:${st.lastOk ? st.color : '#B0413E'};">${st.lastOk ? '정답!' : '아쉬워요!'}</b> `
+      + (info.ruleful ? info.why + ' ' : `이 음은 ${info.label}이에요. `) + (cur ? cur.hint : '');
+    return `
+      <div style="margin-top:2px;">${board}</div>
+      <div class="ornament-korean" style="margin-top:6px;min-height:40px;">${msg}</div>`;
+  }
   const chip = (label, val, on) => `
     <div style="flex:1;min-width:0;border:1.5px solid ${on ? st.color : 'var(--border, #DDD)'};border-radius:10px;padding:6px 8px;background:${on ? st.light : 'transparent'};">
       <div style="font-size:11px;color:var(--text-mid);">${label}</div>
       <div style="font-family:'Jua',sans-serif;font-size:15px;color:var(--text);">${val}</div>
     </div>`;
-  const keyText = (WT_KEY_SHARPS[st.key] || []).map(l => WT_NAME[l] + '#').join('·') || '없음';
-  const revealed = info && (st.mode === 'step' || st.answered);
+  const keyText = Object.entries(WT_KEY_ACC[st.key] || {}).map(([l, a]) => WT_NAME[l] + WT_SYM[a]).join('·') || '없음';
+  const revealed = info && answered;
   const memoText = revealed ? (info.memo.length ? info.memo.join('·') : '없음') : (info ? '?' : '—');
   let msg;
   if (!info) msg = st.mode === 'step' ? '‘다음 음 ▶’을 눌러서 한 음씩 따라가 봐요.' : '';
@@ -2233,6 +2343,7 @@ function wtControlsHtml(sid) {
       <button class="btn btn-${cl}" style="font-size:13px;padding:7px 16px;" onclick="wtReset('${sid}')">다시 하기</button>`;
   }
   if (!st.answered) {
+    if (st.mode === 'finger_guess') return `<span style="font-size:12.5px;color:var(--text-mid);">${st.cur + 1} / ${total} · 맞힌 개수 ${st.score}</span>`;
     return info.choices.map(c => `
       <button class="btn btn-${cl}" style="font-size:16px;padding:8px 22px;font-family:'Jua',sans-serif;" onclick="wtGuess('${sid}', '${c}')">${c}</button>`).join('');
   }
@@ -2267,6 +2378,7 @@ function wtGuess(sid, choice) {
   if (!st || st.answered) return;
   const info = st.notes[st.cur];
   st.answered = true;
+  st.lastChoice = choice;
   st.lastOk = choice === info.label;
   if (st.lastOk) st.score++;
   playFingerNote(info.freq);
@@ -2300,12 +2412,14 @@ function buildAccidentalWalkthrough(s, meta, slideId) {
   const el = document.createElement('div');
   el.className = 'slide';
   const measures = s.measures || [];
-  const mode = s.mode === 'guess' ? 'guess' : 'step';
+  const mode = ['guess', 'finger_guess'].includes(s.mode) ? s.mode : 'step';
   WT_STATE[slideId] = {
     mode, key: s.key || 'C', measures,
     notes: wtAnalyze(measures, s.key || 'C'),
     cur: mode === 'step' ? -1 : 0, answered: false, score: 0, done: false,
-    color: colorOf(c, meta), light: meta[`color_${c}_light`] || '#F2F2F2', cls: clsOf(c)
+    color: colorOf(c, meta), light: meta[`color_${c}_light`] || '#F2F2F2', cls: clsOf(c),
+    accent: colorOf(c === 'a' ? 'b' : 'a', meta),
+    spots: s.fingerboard ? FINGERBOARDS[s.fingerboard] : null
   };
   el.innerHTML = `
     <h1 class="slide-title" style="font-size:clamp(16px,2.4vw,22px);">${s.title}</h1>
@@ -2317,6 +2431,76 @@ function buildAccidentalWalkthrough(s, meta, slideId) {
     <div class="orn-vis-wrap" id="wt-ctrl-${slideId}" style="justify-content:center;align-items:center;flex-wrap:wrap;gap:8px;">${wtControlsHtml(slideId)}</div>
   `;
   queueVexRender(() => renderWalkthroughStaff(slideId));
+  return el;
+}
+
+/* ── FINGER COMPARE ── two finger patterns on the same string stacked on
+   one semitone scale, so the moved fingers line up visibly against the
+   ones that stay put. Tap a dot to hear it, or play the row in order. */
+const FC_STATE = {};
+
+function fcRenderRow(sid, i) {
+  const st = FC_STATE[sid];
+  const box = document.getElementById(`fc-row-${sid}-${i}`);
+  if (!st || !box) return;
+  const row = st.rows[i];
+  const spots = row.notes.map(l => st.spots.find(sp => sp.label === l)).filter(Boolean);
+  box.innerHTML = fingerboardSvg(spots, {
+    highlight: st.playing && st.playing.row === i ? st.playing.label : null,
+    reveal: () => true,
+    onclick: l => `fcTap('${sid}',${i},'${l}')`,
+    gaps: true, accent: st.accent, strong: st.color
+  });
+}
+
+function fcTap(sid, i, label) {
+  const st = FC_STATE[sid];
+  const sp = st && st.spots.find(x => x.label === label);
+  if (!sp) return;
+  playFingerNote(sp.freq);
+  st.playing = { row: i, label };
+  fcRenderRow(sid, i);
+  const hint = document.getElementById(`fc-hint-${sid}`);
+  if (hint) hint.innerHTML = `<b style="color:${st.color};">${sp.label}</b> — ${sp.hint}`;
+}
+
+function fcPlayRow(sid, i) {
+  const st = FC_STATE[sid];
+  if (!st) return;
+  if (st.timer) clearTimeout(st.timer);
+  const notes = st.rows[i].notes;
+  let k = 0;
+  const step = () => {
+    if (k >= notes.length) { st.playing = null; fcRenderRow(sid, i); st.timer = null; return; }
+    fcTap(sid, i, notes[k++]);
+    st.timer = setTimeout(step, 950);
+  };
+  step();
+}
+
+function buildFingerCompare(s, meta, slideId) {
+  const c = s.color || 'a';
+  const el = document.createElement('div');
+  el.className = 'slide';
+  FC_STATE[slideId] = {
+    rows: s.rows || [], spots: FINGERBOARDS[s.fingerboard || 'A'],
+    color: colorOf(c, meta), accent: colorOf(c === 'a' ? 'b' : 'a', meta), playing: null
+  };
+  el.innerHTML = `
+    <h1 class="slide-title" style="font-size:clamp(16px,2.4vw,22px);">${s.title}</h1>
+    ${s.subtitle ? `<p class="slide-subtitle">${s.subtitle}</p>` : ''}
+    <div class="ornament-card ${clsOf(c)}" style="max-width:640px;">
+      ${(s.rows || []).map((r, i) => `
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:${i ? 8 : 0}px;">
+          <b style="font-family:'Jua',sans-serif;font-size:14px;color:var(--text);">${r.label}</b>
+          <button class="btn btn-${clsOf(c)}" style="font-size:11.5px;padding:5px 12px;" onclick="fcPlayRow('${slideId}',${i})">▶ 차례로 듣기</button>
+        </div>
+        <div id="fc-row-${slideId}-${i}"></div>
+      `).join('')}
+      <div class="ornament-korean" id="fc-hint-${slideId}" style="margin-top:6px;min-height:22px;">${s.compare_hint || '점을 누르면 소리와 손가락 설명이 나와요.'}</div>
+    </div>
+  `;
+  (s.rows || []).forEach((_, i) => queueVexRender(() => fcRenderRow(slideId, i)));
   return el;
 }
 
@@ -3272,7 +3456,7 @@ function renderVexTenuto(id, color) {
 /* ── VEXFLOW: SHARP / NATURAL — single note with an accidental modifier,
    for teaching that a sharp raises a note a half step and a natural sign
    cancels a sharp/flat back to the plain pitch. ── */
-function renderVexAccidentalNote(id, color, accidental) {
+function renderVexAccidentalNote(id, color, accidental, noteKey) {
   const container = document.getElementById(id);
   if (!container) return;
   container.innerHTML = '';
@@ -3286,7 +3470,7 @@ function renderVexAccidentalNote(id, color, accidental) {
   ctx.setFillStyle('#AAAAAA'); ctx.setStrokeStyle('#AAAAAA');
   stave.setContext(ctx).draw();
   ctx.setFillStyle(color); ctx.setStrokeStyle(color);
-  const note = new StaveNote({ keys: ['c/5'], duration: 'q' });
+  const note = new StaveNote({ keys: [noteKey || 'c/5'], duration: 'q' });
   note.addModifier(new Accidental(accidental), 0);
   const voice = new Voice({ num_beats: 1, beat_value: 4 }).setStrict(false).addTickables([note]);
   new Formatter().joinVoices([voice]).format([voice], 45);
@@ -3294,6 +3478,7 @@ function renderVexAccidentalNote(id, color, accidental) {
 }
 function renderVexSharp(id, color)   { renderVexAccidentalNote(id, color, '#'); }
 function renderVexNatural(id, color) { renderVexAccidentalNote(id, color, 'n'); }
+function renderVexFlat(id, color)    { renderVexAccidentalNote(id, color, 'b', 'b/4'); }
 
 const VEX_SYMBOL_RENDERERS = {
   fermata: renderVexFermata,
@@ -3316,6 +3501,7 @@ const VEX_SYMBOL_RENDERERS = {
   timesig_badge: renderVexTimeSigBadge,
   sharp: renderVexSharp,
   natural: renderVexNatural,
+  flat: renderVexFlat,
   key_sig_sample: renderVexKeySigSample
 };
 
@@ -3351,7 +3537,8 @@ function buildOrnament(s, meta, slideId) {
     triplet: '음표 3개 위에<br>숫자 3으로 표시해요!',
     dotted_rhythm: '점8분음표+16분음표를<br>이렇게 묶어서 표시해요!',
     sharp: '음표 앞에<br>#으로 표시해요!',
-    natural: '음표 앞에<br>♮으로 표시해요!'
+    natural: '음표 앞에<br>♮으로 표시해요!',
+    flat: '음표 앞에<br>♭으로 표시해요!'
   };
   const staffLabel = staffLabelMap[s.symbol_type] || '';
   const effectsHtml = (s.effect_words || []).map(w => `<span class="effect-tag">${w}</span>`).join('');
@@ -3370,7 +3557,7 @@ function buildOrnament(s, meta, slideId) {
           <div class="ornament-name-big">${s.name}</div>
           <div class="ornament-english">${s.english}</div>
           <div class="ornament-korean">${s.korean}</div>
-          <div class="ornament-analogy-tag">${s.emoji} ${s.analogy}</div>
+          <div class="ornament-analogy-tag">${s.emoji ? s.emoji + ' ' : ''}${s.analogy}</div>
           <div class="ornament-effects">${effectsHtml}</div>
           ${s.usage ? `<div class="ornament-usage-note">${s.usage}</div>` : ''}
         </div>
@@ -4014,7 +4201,7 @@ function playOrnament(slideId) {
       const d = document.getElementById(dotId); if (d) d.style.transform = 'scale(1)';
     }, totalMs7 + 250);
 
-  } else if (audioType === 'sharp' || audioType === 'natural') {
+  } else if (audioType === 'sharp' || audioType === 'natural' || audioType === 'flat') {
     // A string 2nd finger: natural C5 (low 2) vs sharp C#5 (high 2) —
     // 'sharp' plays natural-then-sharp (raising it), 'natural' plays
     // sharp-then-natural (cancelling it back), so the button always
@@ -4033,8 +4220,9 @@ function playOrnament(slideId) {
       g.gain.linearRampToValueAtTime(0, startT + dur);
       osc.start(startT); osc.stop(startT + dur + 0.01);
     }
-    const firstFreq  = audioType === 'sharp' ? naturalFreq : sharpFreq;
-    const secondFreq = audioType === 'sharp' ? sharpFreq   : naturalFreq;
+    // 'flat' uses A string 1st finger instead: B4 (시) then B♭4 (시♭)
+    const firstFreq  = audioType === 'flat' ? 493.88 : audioType === 'sharp' ? naturalFreq : sharpFreq;
+    const secondFreq = audioType === 'flat' ? 466.16 : audioType === 'sharp' ? sharpFreq   : naturalFreq;
     schedTone(t0, firstFreq, 0.22);
     animateRipples(rId, '#AAAAAA', 0.4, 12, 32);
     const d0 = document.getElementById(dotId); if (d0) d0.style.transform = 'scale(1.4)';
@@ -5094,6 +5282,7 @@ function loadLesson(data) {
     else if (s.type === 'finger_position') el = buildFingerPosition(s, meta, sid);
     else if (s.type === 'key_signature_compare') el = buildKeySignatureCompare(s, meta, sid);
     else if (s.type === 'accidental_walkthrough') el = buildAccidentalWalkthrough(s, meta, sid);
+    else if (s.type === 'finger_compare') el = buildFingerCompare(s, meta, sid);
     else if (s.type === 'video_feature')   el = buildVideoFeature(s, meta, sid);
     else return;
     el.id = sid;

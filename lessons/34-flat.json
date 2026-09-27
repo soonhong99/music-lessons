@@ -1,0 +1,198 @@
+{
+  "meta": {
+    "id": "34-flat",
+    "title": "플랫(♭)을 배워요!",
+    "subject": "음악",
+    "grade": "초등 1학년",
+    "color_a": "#5A3E9E",
+    "color_b": "#2E8A7A",
+    "color_a_light": "#ECE6F7",
+    "color_b_light": "#E0F3EF",
+    "color_a_dark": "#2E1E5A",
+    "color_b_dark": "#12483F",
+    "color_a_border": "#BCA8E0",
+    "color_b_border": "#A0D8CC",
+    "result_message": "이제 플랫이 나와도, 어느 손가락을 붙이고 뗄지 알 수 있어요!"
+  },
+  "slides": [
+    {
+      "type": "accidental_walkthrough",
+      "mode": "guess",
+      "title": "복습 게임! 집 약속과 방 쪽지",
+      "subtitle": "파#·도#·솔#이 붙은 곡이에요. 색칠된 음은 무슨 음일까요?",
+      "key": "A",
+      "measures": [
+        ["c/5", "g/5:n", "g/5"],
+        ["g/5", "c/5:n", "f/5"],
+        ["c/5", "f/5"]
+      ],
+      "color": "a"
+    },
+    {
+      "type": "intro",
+      "title": "플랫(♭)을 배워요!",
+      "subtitle": "샵의 짝꿍, 반음 내리는 기호예요",
+      "concepts": [
+        {
+          "name": "샵(#) — 반음 올리기",
+          "symbol": "sharp",
+          "description": "지난번에 배웠어요. 음을 반음 높게 연주해요.",
+          "color": "b"
+        },
+        {
+          "name": "플랫(♭) — 반음 내리기",
+          "symbol": "flat",
+          "description": "오늘 배울 기호예요. 음을 반음 낮게 연주해요.",
+          "color": "a"
+        }
+      ],
+      "analogy": "플랫은 알파벳 b처럼 생겼어요. 음이 바뀌면 손가락도 옆 손가락에 붙이거나 떼는 게 달라져요."
+    },
+    {
+      "type": "ornament",
+      "name": "플랫",
+      "english": "Flat",
+      "symbol_type": "flat",
+      "korean": "음을 반음 내리라는 표시예요",
+      "analogy": "시♭은 시보다 반음 낮아요. 1번 손가락을 개방현(라)에 바짝 붙이면 돼요.",
+      "effect_words": ["반음 내리기", "낮은음"],
+      "color": "a",
+      "listen_hint": "시를 먼저 들려드리고, 반음 내린 시♭을 이어서 들려드릴게요. 조금 낮아지는 걸 느껴보세요!",
+      "usage": "<b>어디에 표시되나요?</b> 음표 바로 왼쪽에 ♭을 붙여요.<br><b>규칙은 샵과 똑같아요.</b> 그 마디가 끝날 때까지 적용되고, 제자리표(♮)가 나오면 원래 음으로 돌아가요."
+    },
+    {
+      "type": "key_signature_compare",
+      "title": "플랫도 조표가 될 수 있어요",
+      "subtitle": "높은음자리표 옆에 플랫이 붙으면 집 약속이에요",
+      "items": [
+        { "key": "C", "label": "조표 없음", "note": "붙은 게 없어요" },
+        { "key": "F", "label": "플랫 1개", "note": "시♭", "color": "a" },
+        { "key": "Bb", "label": "플랫 2개", "note": "시♭·미♭", "color": "b" }
+      ],
+      "compare_hint": "플랫은 시♭이 먼저, 그다음 미♭ 순서로 붙어요. 조표에 시♭이 있으면, 곡에 나오는 모든 시를 시♭으로 연주해요.",
+      "color": "a"
+    },
+    {
+      "type": "finger_compare",
+      "title": "손가락 모양을 비교해봐요",
+      "subtitle": "A현에서 어느 손가락이 달라질까요?",
+      "fingerboard": "A",
+      "rows": [
+        { "label": "평소 모양 (시·도#·미)", "notes": ["라", "시", "도#", "레", "미"] },
+        { "label": "플랫 모양 (시♭·도·미♭)", "notes": ["라", "시♭", "도", "레", "미♭"] }
+      ],
+      "compare_hint": "3번(레)은 그대로예요. 1번·2번·4번이 옆에 붙는지 떨어지는지가 바뀌어요. 점을 눌러서 들어봐요.",
+      "color": "a"
+    },
+    {
+      "type": "accidental_walkthrough",
+      "mode": "step",
+      "title": "손가락 따라가기 ① 내려가요",
+      "subtitle": "미♭ 레 도 시♭ 라 — 한 음씩 눌러보며 손가락을 짚어봐요",
+      "key": "C",
+      "fingerboard": "A",
+      "measures": [
+        ["e/5:b", "d/5", "c/5", "b/4:b"],
+        ["a/4"]
+      ],
+      "color": "a"
+    },
+    {
+      "type": "accidental_walkthrough",
+      "mode": "step",
+      "title": "손가락 따라가기 ② 올라가요",
+      "subtitle": "라 시♭ 도 레 미♭ — 이번엔 거꾸로 올라가요",
+      "key": "C",
+      "fingerboard": "A",
+      "measures": [
+        ["a/4", "b/4:b", "c/5", "d/5"],
+        ["e/5:b"]
+      ],
+      "color": "b"
+    },
+    {
+      "type": "accidental_walkthrough",
+      "mode": "finger_guess",
+      "title": "게임 ① 어디를 짚을까?",
+      "subtitle": "색칠된 음을 보고, A현 그림에서 짚을 자리를 눌러요",
+      "key": "C",
+      "fingerboard": "A",
+      "measures": [
+        ["b/4:b", "c/5", "b/4"],
+        ["b/4", "c/5:#", "d/5"],
+        ["e/5:b", "e/5"]
+      ],
+      "color": "a"
+    },
+    {
+      "type": "accidental_walkthrough",
+      "mode": "guess",
+      "title": "게임 ② 플랫 집 약속과 방 쪽지",
+      "subtitle": "시♭이 조표에 붙은 곡이에요. 색칠된 음은 무슨 음일까요?",
+      "key": "F",
+      "measures": [
+        ["b/4", "b/4:n", "b/4"],
+        ["b/4", "e/5:b", "e/5"],
+        ["e/5", "b/4"]
+      ],
+      "color": "b"
+    },
+    {
+      "type": "features",
+      "title": "정리해봐요",
+      "subtitle": "플랫, 한눈에 정리!",
+      "items": [
+        {
+          "title": "플랫(♭) = 반음 내리기",
+          "desc": "음표 왼쪽에 ♭이 붙으면, 그 음을 반음 낮게 연주해요."
+        },
+        {
+          "title": "쪽지와 약속 규칙은 샵과 똑같아요",
+          "desc": "음표 앞에 붙으면 그 마디만, 조표에 붙으면 곡이 끝날 때까지 적용돼요."
+        },
+        {
+          "title": "A현 플랫 손가락",
+          "desc": "시♭은 1번을 개방현(라)에 붙이고, 도는 2번을 3번에서 떼고, 미♭은 4번을 3번(레)에 붙여요."
+        }
+      ],
+      "note": "새 기호가 나오면, 어느 손가락을 옆에 붙일지 뗄지 먼저 생각해봐요!"
+    },
+    {
+      "type": "quiz",
+      "title": "퀴즈 타임!",
+      "subtitle": "플랫, 얼마나 알게 됐나요?",
+      "questions": [
+        {
+          "q": "플랫(♭)은 음을 어떻게 바꿀까요?",
+          "options": ["반음 올려요", "반음 내려요", "아무것도 안 바꿔요"],
+          "answer": 1
+        },
+        {
+          "q": "A현에서 시♭을 짚으려면 1번 손가락을 어떻게 할까요?",
+          "options": ["개방현(라)에 바짝 붙여요", "개방현(라)에서 떼요", "3번에 붙여요"],
+          "answer": 0
+        },
+        {
+          "q": "A현에서 미♭을 짚으려면 4번 손가락을 어떻게 할까요?",
+          "options": ["3번(레)에 붙여요", "3번(레)에서 떼요", "누르지 않아요"],
+          "answer": 0
+        },
+        {
+          "q": "한 마디 안에서 시♭이 나온 뒤, 같은 마디에 표시 없는 '시'가 나오면?",
+          "options": ["시♭", "시", "도"],
+          "answer": 0
+        },
+        {
+          "q": "조표에 시♭이 붙은 곡에서, 표시 없는 '시'는 무슨 음일까요?",
+          "options": ["시", "시♭", "시#"],
+          "answer": 1
+        },
+        {
+          "q": "시♭을 다시 원래 '시'로 되돌리려면 어떤 기호가 필요할까요?",
+          "options": ["샵(#)", "제자리표(♮)", "플랫(♭) 하나 더"],
+          "answer": 1
+        }
+      ]
+    }
+  ]
+}

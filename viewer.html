@@ -2504,6 +2504,188 @@ function buildFingerCompare(s, meta, slideId) {
   return el;
 }
 
+/* ── CHROMATIC RUNS ── the A-string half-step ladder (라 → 미, every spot
+   touching the next) played at increasing speed, with the string diagram
+   lighting up in step. Slow it sounds like stairs; at "bee speed" going
+   up and down it turns into the buzzing of 왕벌의 비행. */
+const CR_STATE = {};
+
+function crPath(pattern, loops) {
+  const up = A_STRING_SPOTS.map(sp => sp.label);
+  const down = up.slice().reverse();
+  const seg = { up, down, updown: up.concat(down.slice(1)), downup: down.concat(up.slice(1)) }[pattern] || up;
+  let path = seg.slice();
+  for (let i = 1; i < (loops || 1); i++) path = path.concat(seg.slice(1));
+  return path;
+}
+
+// schedules the notes on the audio clock and moves the highlight with them;
+// onDone fires after the last note
+function crPlayPath(sid, path, dur, render, onDone) {
+  const st = CR_STATE[sid];
+  if (!st) return;
+  st.timers.forEach(clearTimeout);
+  st.timers = [];
+  const ctx = getAudioCtx();
+  const t0 = ctx.currentTime + 0.05;
+  path.forEach((label, i) => {
+    const sp = A_STRING_SPOTS.find(x => x.label === label);
+    const start = t0 + i * dur;
+    const osc = ctx.createOscillator(), g = ctx.createGain();
+    osc.connect(g); g.connect(ctx.destination);
+    osc.setPeriodicWave(getViolinWave(ctx));
+    osc.frequency.setValueAtTime(sp.freq, start);
+    const len = Math.max(dur * 0.95, 0.05);
+    g.gain.setValueAtTime(0, start);
+    g.gain.linearRampToValueAtTime(0.22, start + Math.min(0.02, len / 4));
+    g.gain.setValueAtTime(0.22, start + len - Math.min(0.03, len / 4));
+    g.gain.linearRampToValueAtTime(0, start + len);
+    osc.start(start); osc.stop(start + len + 0.01);
+    st.timers.push(setTimeout(() => { st.lit = label; render(); }, (0.05 + i * dur) * 1000));
+  });
+  st.timers.push(setTimeout(() => { st.lit = null; render(); if (onDone) onDone(); }, (0.05 + path.length * dur) * 1000 + 150));
+}
+
+function crBoard(sid, reveal) {
+  const st = CR_STATE[sid];
+  return fingerboardSvg(A_STRING_SPOTS, {
+    highlight: st.lit, reveal: () => reveal, onclick: null,
+    gaps: true, accent: st.accent, strong: st.color
+  });
+}
+
+/* chromatic_buzz: free play with three speed buttons */
+const CR_SPEEDS = {
+  slow: { dur: 0.45, pattern: 'up', loops: 1 },
+  fast: { dur: 0.16, pattern: 'updown', loops: 1 },
+  bee:  { dur: 0.065, pattern: 'updown', loops: 4 }
+};
+
+function crRenderBuzz(sid) {
+  const box = document.getElementById(`cr-board-${sid}`);
+  if (box) box.innerHTML = crBoard(sid, true);
+}
+
+function crBuzz(sid, speed, btn) {
+  const sp = CR_SPEEDS[speed];
+  const st = CR_STATE[sid];
+  if (!sp || !st) return;
+  const msg = document.getElementById(`cr-msg-${sid}`);
+  if (msg) msg.innerHTML = st.messages[speed] || '';
+  crPlayPath(sid, crPath(sp.pattern, sp.loops), sp.dur, () => crRenderBuzz(sid));
+}
+
+function buildChromaticBuzz(s, meta, slideId) {
+  const c = s.color || 'a';
+  const el = document.createElement('div');
+  el.className = 'slide';
+  CR_STATE[slideId] = {
+    lit: null, timers: [], color: colorOf(c, meta), accent: colorOf(c === 'a' ? 'b' : 'a', meta),
+    messages: s.messages || {}
+  };
+  const btn = (k, label) => `<button class="btn btn-${clsOf(c)}" style="font-size:13px;padding:7px 16px;" onclick="crBuzz('${slideId}','${k}', this)">${label}</button>`;
+  el.innerHTML = `
+    <h1 class="slide-title" style="font-size:clamp(16px,2.4vw,22px);">${s.title}</h1>
+    ${s.subtitle ? `<p class="slide-subtitle">${s.subtitle}</p>` : ''}
+    <div class="ornament-card ${clsOf(c)}" style="max-width:640px;">
+      <div id="cr-board-${slideId}"></div>
+      <div class="ornament-korean" id="cr-msg-${slideId}" style="margin-top:6px;min-height:40px;">${s.hint || ''}</div>
+    </div>
+    <div class="orn-vis-wrap" style="justify-content:center;flex-wrap:wrap;gap:8px;">
+      ${btn('slow', '▶ 천천히')}${btn('fast', '▶ 빠르게')}${btn('bee', '▶ 왕벌 속도')}
+    </div>
+  `;
+  queueVexRender(() => crRenderBuzz(slideId));
+  return el;
+}
+
+/* direction_game: hear a half-step run, guess where the bee flew */
+const CR_DIR_LABEL = { up: '올라가요', down: '내려가요', updown: '올라갔다 내려와요', downup: '내려갔다 올라가요' };
+
+function crRenderGame(sid) {
+  const st = CR_STATE[sid];
+  const box = document.getElementById(`cr-game-${sid}`);
+  if (!st || !box) return;
+  const total = st.rounds.length;
+  if (st.done) {
+    box.innerHTML = `
+      <div style="font-family:'Jua',sans-serif;font-size:18px;text-align:center;margin:18px 0 10px;">다 풀었어요! ${total}문제 중 <b style="color:${st.color};">${st.score}개</b> 정답</div>
+      <div style="text-align:center;"><button class="btn btn-${st.cls}" style="font-size:13px;padding:7px 16px;" onclick="crGameReset('${sid}')">다시 하기</button></div>`;
+    return;
+  }
+  const r = st.rounds[st.cur];
+  const choices = ['up', 'down'].includes(r.pattern) ? ['up', 'down'] : ['up', 'down', 'updown', 'downup'];
+  let msg;
+  if (!st.answered) msg = st.heard ? '벌이 어디로 날아갔을까요? 아래에서 골라봐요.' : '‘▶ 소리 듣기’를 눌러서 벌 소리를 들어봐요.';
+  else msg = `<b style="color:${st.lastOk ? st.color : '#B0413E'};">${st.lastOk ? '정답!' : '아쉬워요!'}</b> 벌이 <b>${CR_DIR_LABEL[r.pattern]}</b>. 그림에서 어떻게 날아갔는지 다시 볼까요?`;
+  box.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;font-size:12.5px;color:var(--text-mid);margin-bottom:4px;">
+      <span>${st.cur + 1} / ${total} · ${r.label || ''}</span><span>맞힌 개수 ${st.score}</span>
+    </div>
+    <div id="cr-board-${sid}">${crBoard(sid, st.answered)}</div>
+    <div class="ornament-korean" style="margin-top:6px;min-height:40px;">${msg}</div>
+    <div style="display:flex;justify-content:center;flex-wrap:wrap;gap:8px;margin-top:8px;">
+      <button class="btn" style="font-size:12.5px;padding:7px 14px;" onclick="crGamePlay('${sid}')">▶ 소리 ${st.heard ? '다시 ' : ''}듣기</button>
+      ${st.answered
+        ? `<button class="btn btn-${st.cls}" style="font-size:13px;padding:7px 16px;" onclick="crGameNext('${sid}')">${st.cur >= total - 1 ? '결과 보기' : '다음 문제 ▶'}</button>`
+        : choices.map(k => `<button class="btn btn-${st.cls}" ${st.heard ? '' : 'disabled'} style="font-size:14px;padding:7px 14px;font-family:'Jua',sans-serif;" onclick="crGameAnswer('${sid}','${k}')">${CR_DIR_LABEL[k]}</button>`).join('')}
+    </div>`;
+}
+
+function crGamePlay(sid) {
+  const st = CR_STATE[sid];
+  if (!st || st.done) return;
+  const r = st.rounds[st.cur];
+  st.heard = true;
+  crRenderGame(sid);
+  // before answering, the diagram stays dark so the ears do the work
+  const render = st.answered ? () => { const b = document.getElementById(`cr-board-${sid}`); if (b) b.innerHTML = crBoard(sid, true); } : () => {};
+  crPlayPath(sid, crPath(r.pattern, 1), r.dur || 0.2, render);
+}
+
+function crGameAnswer(sid, k) {
+  const st = CR_STATE[sid];
+  if (!st || st.answered) return;
+  st.answered = true;
+  st.lastOk = k === st.rounds[st.cur].pattern;
+  if (st.lastOk) st.score++;
+  crRenderGame(sid);
+  crGamePlay(sid);
+}
+
+function crGameNext(sid) {
+  const st = CR_STATE[sid];
+  if (!st) return;
+  st.timers.forEach(clearTimeout); st.lit = null;
+  if (st.cur >= st.rounds.length - 1) st.done = true;
+  else { st.cur++; st.answered = false; st.heard = false; }
+  crRenderGame(sid);
+}
+
+function crGameReset(sid) {
+  const st = CR_STATE[sid];
+  if (!st) return;
+  Object.assign(st, { cur: 0, score: 0, answered: false, heard: false, done: false, lit: null });
+  crRenderGame(sid);
+}
+
+function buildDirectionGame(s, meta, slideId) {
+  const c = s.color || 'a';
+  const el = document.createElement('div');
+  el.className = 'slide';
+  CR_STATE[slideId] = {
+    rounds: s.rounds || [], cur: 0, score: 0, answered: false, heard: false, done: false,
+    lit: null, timers: [], color: colorOf(c, meta), accent: colorOf(c === 'a' ? 'b' : 'a', meta), cls: clsOf(c)
+  };
+  el.innerHTML = `
+    <h1 class="slide-title" style="font-size:clamp(16px,2.4vw,22px);">${s.title}</h1>
+    ${s.subtitle ? `<p class="slide-subtitle">${s.subtitle}</p>` : ''}
+    <div class="ornament-card ${clsOf(c)}" style="max-width:640px;" id="cr-game-${slideId}"></div>
+  `;
+  queueVexRender(() => crRenderGame(slideId));
+  return el;
+}
+
 /* ── CHORD GALLERY BUILDER ── multiple root pairs (major/minor), each with
    its own play button, so the bright/dark contrast is heard repeat across
    different chords instead of just one example. */
@@ -2579,7 +2761,7 @@ function buildComposer(s, meta) {
     <h1 class="slide-title" style="font-size:clamp(16px,2.4vw,22px);">🎼 ${s.name}</h1>
     <p class="slide-subtitle">${s.years} · ${s.nationality}</p>
     <div class="composer-card ${cl}">
-      <span class="composer-avatar">${s.emoji}</span>
+      <span class="composer-avatar">${s.emoji || '♪'}</span>
       <div class="composer-info">
         <div class="composer-name">${s.name}</div>
         <div class="composer-sub">${s.english_name}</div>
@@ -5283,6 +5465,8 @@ function loadLesson(data) {
     else if (s.type === 'key_signature_compare') el = buildKeySignatureCompare(s, meta, sid);
     else if (s.type === 'accidental_walkthrough') el = buildAccidentalWalkthrough(s, meta, sid);
     else if (s.type === 'finger_compare') el = buildFingerCompare(s, meta, sid);
+    else if (s.type === 'chromatic_buzz') el = buildChromaticBuzz(s, meta, sid);
+    else if (s.type === 'direction_game') el = buildDirectionGame(s, meta, sid);
     else if (s.type === 'video_feature')   el = buildVideoFeature(s, meta, sid);
     else return;
     el.id = sid;

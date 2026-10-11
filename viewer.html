@@ -2056,7 +2056,8 @@ function playScaleCompare(keyName, btn) {
    go; mode:"guess" asks the student to pick the pitch first;
    mode:"finger_guess" asks where on the A string to press it instead.
    With "fingerboard":"A" a string diagram follows along under the staff.
-   Note spec strings: "c/5", "c/5:n", "g/5:#", "b/4:b". */
+   Note spec strings: "c/5", "c/5:n", "g/5:#", "b/4:b"; an optional third
+   field is the duration ("b/4::8", "c/5:#:8", "g/4::hd"), default quarter. */
 const WT_KEY_ACC = {
   C: {}, G: { f: '#' }, D: { f: '#', c: '#' }, A: { f: '#', c: '#', g: '#' },
   F: { b: 'b' }, Bb: { b: 'b', e: 'b' }
@@ -2089,7 +2090,7 @@ function wtAnalyze(measures, key) {
   // choices and the "조표에 X은 없어요" wording
   const altOf = { ...keyAcc };
   measures.flat().forEach(spec => {
-    const [pos, acc] = spec.split(':');
+    const [pos, acc] = spec.split(':');  // duration field ignored here
     if (acc && acc !== 'n' && !altOf[pos[0]]) altOf[pos[0]] = acc;
   });
   const out = [];
@@ -2097,16 +2098,21 @@ function wtAnalyze(measures, key) {
   measures.forEach((m, mi) => {
     const memo = {};
     m.forEach((spec, ni) => {
-      const [pos, acc] = spec.split(':');
+      const [pos, acc, dur] = spec.split(':');
       const letter = pos[0], oct = parseInt(pos.split('/')[1], 10);
       const name = WT_NAME[letter];
       const alt = altOf[letter] || '#';
       let eff, why;
       if (acc) {
+        // a ♮ that changes nothing (no 쪽지 in this room, nothing in the key
+        // signature) is a courtesy reminder, as in Minuet 1 bar 17
+        const courtesy = acc === 'n' && !memo[pos] && !keyAcc[letter];
         memo[pos] = acc;
         eff = acc;
         const kind = acc === '#' ? '샵(#)' : acc === 'b' ? '플랫(♭)' : '제자리표(♮)';
-        why = `${kind} 쪽지가 붙었어요. 이 방에서는 ${name}${WT_SYM[eff]}!`;
+        why = courtesy
+          ? `이 제자리표는 '헷갈리지 마세요!' 하고 한 번 더 알려주는 친절한 쪽지예요. 이 방에서는 ${name}!`
+          : `${kind} 쪽지가 붙었어요. 이 방에서는 ${name}${WT_SYM[eff]}!`;
       } else if (memo[pos]) {
         eff = memo[pos];
         why = `표시는 없지만 같은 방이에요. 쪽지가 아직 살아 있어서 ${name}${WT_SYM[eff]}!`;
@@ -2125,7 +2131,7 @@ function wtAnalyze(measures, key) {
       const midi = 12 * (oct + 1) + WT_SEMI[letter] + shift;
       const altName = name + WT_SYM[alt];
       out.push({
-        m: mi, n: ni, pos, acc: acc || null, letter,
+        m: mi, n: ni, pos, acc: acc || null, letter, dur: dur || 'q',
         label: name + WT_SYM[eff],
         freq: 440 * Math.pow(2, (midi - 69) / 12),
         why, ruleful: !!altOf[letter],
@@ -2193,10 +2199,13 @@ function renderWalkthroughStaff(sid) {
   const container = document.getElementById(`wt-staff-${sid}`);
   if (!st || !container) return;
   container.innerHTML = '';
-  const { Renderer, Stave, StaveNote, Voice, Formatter, Accidental, Barline } = Vex.Flow;
+  const { Renderer, Stave, StaveNote, Voice, Formatter, Accidental, Barline, Beam, Dot } = Vex.Flow;
   const measures = st.measures;
   const perNote = 62;
-  const widths = measures.map((m, i) => (i === 0 ? 70 + Object.keys(WT_KEY_ACC[st.key] || {}).length * 11 : 18) + m.length * perNote + 6);
+  const DUR_W = { '8': 0.7, q: 1, h: 1.15, hd: 1.3 };
+  const widths = measures.map((m, i) =>
+    (i === 0 ? 70 + Object.keys(WT_KEY_ACC[st.key] || {}).length * 11 + (st.time ? 24 : 0) : 18)
+    + m.reduce((w, spec) => w + perNote * (DUR_W[spec.split(':')[2] || 'q'] || 1), 0) + 6);
   const W = widths.reduce((a, b) => a + b, 0) + 10;
   // finger step mode has no 쪽지 rules to show, so no rooms: shorter canvas
   const rooms = !(st.spots && st.mode === 'step');
@@ -2210,7 +2219,11 @@ function renderWalkthroughStaff(sid) {
   let x = 5, flat = 0;
   const staves = measures.map((m, mi) => {
     const stave = new Stave(x, 6, widths[mi]);
-    if (mi === 0) { stave.addClef('treble'); if (st.key !== 'C') stave.addKeySignature(st.key); }
+    if (mi === 0) {
+      stave.addClef('treble');
+      if (st.key !== 'C') stave.addKeySignature(st.key);
+      if (st.time) stave.addTimeSignature(st.time);
+    }
     if (mi === measures.length - 1) stave.setEndBarType(Barline.type.END);
     x += widths[mi];
     return stave;
@@ -2229,7 +2242,8 @@ function renderWalkthroughStaff(sid) {
     stave.setContext(ctx).draw();
     const notes = measures[mi].map(() => {
       const info = st.notes[flat];
-      const vn = new StaveNote({ keys: [info.pos], duration: 'q', auto_stem: true });
+      const vn = new StaveNote({ keys: [info.pos], duration: info.dur, auto_stem: true });
+      if (info.dur === 'hd') Dot.buildAndAttach([vn], { all: true });
       let color = ink;
       if (flat === st.cur) color = strong;
       else if (st.mode !== 'step' && flat > st.cur) color = dim;
@@ -2243,8 +2257,10 @@ function renderWalkthroughStaff(sid) {
       return vn;
     });
     const voice = new Voice({ num_beats: notes.length, beat_value: 4 }).setStrict(false).addTickables(notes);
+    const beams = beamRuns(notes, measures[mi].map(spec => spec.split(':')[2] || 'q'));
     new Formatter().joinVoices([voice]).formatToStave([voice], stave);
     voice.draw(ctx, stave);
+    beams.forEach(b => { b.setStyle({ fillStyle: ink, strokeStyle: ink }); b.setContext(ctx).draw(); });
     // pitch labels above revealed notes
     notes.forEach(vn => {
       const i = vn._wtIdx;
@@ -2414,7 +2430,7 @@ function buildAccidentalWalkthrough(s, meta, slideId) {
   const measures = s.measures || [];
   const mode = ['guess', 'finger_guess'].includes(s.mode) ? s.mode : 'step';
   WT_STATE[slideId] = {
-    mode, key: s.key || 'C', measures,
+    mode, key: s.key || 'C', measures, time: s.time || null,
     notes: wtAnalyze(measures, s.key || 'C'),
     cur: mode === 'step' ? -1 : 0, answered: false, score: 0, done: false,
     color: colorOf(c, meta), light: meta[`color_${c}_light`] || '#F2F2F2', cls: clsOf(c),
@@ -2683,6 +2699,319 @@ function buildDirectionGame(s, meta, slideId) {
     <div class="ornament-card ${clsOf(c)}" style="max-width:640px;" id="cr-game-${slideId}"></div>
   `;
   queueVexRender(() => crRenderGame(slideId));
+  return el;
+}
+
+/* ── MELODY HELPERS ── draw a few measures of a real tune (same note spec
+   strings as the walkthrough) and play them back with the 쪽지/약속 rules
+   applied, so excerpts from the student's own piece sound right. */
+const MEL_BEATS = { '8': 0.5, q: 1, h: 2, hd: 3 };
+// beam each run of consecutive eighths together, the way the Suzuki score
+// prints them (4 eighths under one beam), instead of VexFlow's per-beat pairs
+function beamRuns(notes, durs) {
+  const beams = [];
+  let run = [];
+  const flush = () => { if (run.length > 1) beams.push(new Vex.Flow.Beam(run)); run = []; };
+  notes.forEach((n, i) => { if (durs[i] === '8') run.push(n); else flush(); });
+  flush();
+  return beams;
+}
+
+function renderMelodyStaff(id, measures, key, time, color) {
+  const container = document.getElementById(id);
+  if (!container) return;
+  container.innerHTML = '';
+  const { Renderer, Stave, StaveNote, Voice, Formatter, Accidental, Barline, Beam, Dot } = Vex.Flow;
+  const perNote = 52, DUR_W = { '8': 0.72, q: 1, h: 1.2, hd: 1.35 };
+  const head = 66 + Object.keys(WT_KEY_ACC[key] || {}).length * 11 + (time ? 24 : 0);
+  const widths = measures.map((m, i) => (i === 0 ? head : 14)
+    + m.reduce((w, spec) => w + perNote * (DUR_W[spec.split(':')[2] || 'q'] || 1), 0) + 6);
+  const W = widths.reduce((a, b) => a + b, 0) + 10, H = 112;
+  const renderer = new Renderer(container, Renderer.Backends.SVG);
+  renderer.resize(W, H);
+  const ctx = renderer.getContext();
+  const ink = color || '#3A3833';
+  let x = 5;
+  measures.forEach((m, mi) => {
+    const stave = new Stave(x, 14, widths[mi]);
+    if (mi === 0) {
+      stave.addClef('treble');
+      if (key !== 'C') stave.addKeySignature(key);
+      if (time) stave.addTimeSignature(time);
+    }
+    x += widths[mi];
+    ctx.setFillStyle(ink); ctx.setStrokeStyle(ink);
+    stave.setContext(ctx).draw();
+    const notes = m.map(spec => {
+      const [pos, acc, dur] = spec.split(':');
+      const vn = new StaveNote({ keys: [pos], duration: dur || 'q', auto_stem: true });
+      if (dur === 'hd') Dot.buildAndAttach([vn], { all: true });
+      if (acc) vn.addModifier(new Accidental(acc), 0);
+      return vn;
+    });
+    const voice = new Voice({ num_beats: 3, beat_value: 4 }).setStrict(false).addTickables(notes);
+    const beams = beamRuns(notes, m.map(spec => spec.split(':')[2] || 'q'));
+    new Formatter().joinVoices([voice]).formatToStave([voice], stave);
+    voice.draw(ctx, stave);
+    beams.forEach(b => b.setContext(ctx).draw());
+  });
+  const svg = container.querySelector('svg');
+  if (svg) {
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    svg.style.cssText = `width:100%;max-width:${Math.round(W * 0.78)}px;height:auto;display:block;margin:0 auto;`;
+  }
+}
+
+let _melTimers = [];
+function playMelody(measures, key, bpm, btn) {
+  _melTimers.forEach(clearTimeout); _melTimers = [];
+  const notes = wtAnalyze(measures, key);
+  const beat = 60 / (bpm || 150);
+  const ctx = getAudioCtx();
+  let t = ctx.currentTime + 0.05;
+  notes.forEach(n => {
+    const len = (MEL_BEATS[n.dur] || 1) * beat;
+    const osc = ctx.createOscillator(), g = ctx.createGain();
+    osc.connect(g); g.connect(ctx.destination);
+    osc.setPeriodicWave(getViolinWave(ctx));
+    osc.frequency.setValueAtTime(n.freq, t);
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.22, t + 0.02);
+    g.gain.setValueAtTime(0.22, t + len * 0.85);
+    g.gain.linearRampToValueAtTime(0, t + len * 0.95);
+    osc.start(t); osc.stop(t + len);
+    t += len;
+  });
+  if (btn) {
+    btn.disabled = true;
+    _melTimers.push(setTimeout(() => { btn.disabled = false; }, (t - ctx.currentTime) * 1000 + 100));
+  }
+}
+
+/* ── FORM MAP ── a piece drawn as its sections (가/나), each played twice
+   (도돌이표), with matching blocks outlined so "this part is the same as
+   that part" — the thing that makes memorizing a Suzuki piece easier —
+   is visible and, with measures attached, audible. */
+const FM_STATE = {};
+function buildFormMap(s, meta, slideId) {
+  const el = document.createElement('div');
+  el.className = 'slide';
+  FM_STATE[slideId] = s;
+  const match = '#B0413E';
+  el.innerHTML = `
+    <h1 class="slide-title" style="font-size:clamp(16px,2.4vw,22px);">${s.title}</h1>
+    ${s.subtitle ? `<p class="slide-subtitle">${s.subtitle}</p>` : ''}
+    <div class="ornament-card ${clsOf(s.color || 'a')}" style="max-width:660px;">
+      ${(s.rows || []).map((r, ri) => `
+        <div style="margin-top:${ri ? 12 : 0}px;">
+          <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:5px;">
+            <b style="font-family:'Jua',sans-serif;font-size:16px;color:${colorOf(r.color || 'a', meta)};">${r.label}</b>
+            <span style="font-size:12px;color:var(--text-mid);">${r.bars || ''}${r.times ? ` · 도돌이표로 ${r.times}번` : ''}</span>
+          </div>
+          <div style="display:flex;gap:6px;">
+            ${(r.blocks || []).map((b, bi) => `
+              <div style="flex:${b.flex || 1};min-width:0;border-radius:10px;padding:7px 6px;text-align:center;
+                  background:${meta[`color_${r.color || 'a'}_light`]};border:2px ${b.match ? `dashed ${match}` : `solid ${meta[`color_${r.color || 'a'}_border`]}`};">
+                <div style="font-family:'Jua',sans-serif;font-size:13px;color:var(--text);">${b.text}</div>
+                ${b.sub ? `<div style="font-size:11px;color:var(--text-mid);margin-top:2px;">${b.sub}</div>` : ''}
+                ${b.measures ? `<button class="btn" style="font-size:11px;padding:3px 9px;margin-top:4px;" onclick="fmPlay('${slideId}',${ri},${bi},this)">▶ 듣기</button>` : ''}
+              </div>`).join('')}
+          </div>
+        </div>`).join('')}
+      ${s.note ? `<div class="ornament-korean" style="margin-top:12px;"><b style="color:${match};">점선 칸</b> — ${s.note}</div>` : ''}
+    </div>
+  `;
+  return el;
+}
+function fmPlay(sid, ri, bi, btn) {
+  const s = FM_STATE[sid];
+  const b = s && s.rows[ri].blocks[bi];
+  if (b && b.measures) playMelody(b.measures, s.key || 'C', s.bpm, btn);
+}
+
+/* ── PHRASE COMPARE GAME ── two excerpts of the piece, hear/see both,
+   answer 같아요 / 달라요. */
+const PC_STATE = {};
+function pcRender(sid) {
+  const st = PC_STATE[sid];
+  const box = document.getElementById(`pc-game-${sid}`);
+  if (!st || !box) return;
+  const total = st.rounds.length;
+  if (st.done) {
+    box.innerHTML = `
+      <div style="font-family:'Jua',sans-serif;font-size:18px;text-align:center;margin:18px 0 10px;">다 풀었어요! ${total}문제 중 <b style="color:${st.color};">${st.score}개</b> 정답</div>
+      <div style="text-align:center;"><button class="btn btn-${st.cls}" style="font-size:13px;padding:7px 16px;" onclick="pcReset('${sid}')">다시 하기</button></div>`;
+    return;
+  }
+  const r = st.rounds[st.cur];
+  const side = (k, part) => `
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-top:${k === 'b' ? 6 : 0}px;">
+      <b style="font-family:'Jua',sans-serif;font-size:13.5px;color:var(--text);">${k === 'a' ? '①' : '②'} ${part.label}</b>
+      <button class="btn" style="font-size:11.5px;padding:4px 11px;" onclick="pcPlay('${sid}','${k}',this)">▶ 듣기</button>
+    </div>
+    <div id="pc-staff-${sid}-${k}"></div>`;
+  const msg = !st.answered ? '두 가락을 듣고 악보도 살펴봐요. 똑같을까요, 다를까요?'
+    : `<b style="color:${st.lastOk ? st.color : '#B0413E'};">${st.lastOk ? '정답!' : '아쉬워요!'}</b> ${r.same ? '두 가락은 똑같아요.' : '두 가락은 달라요.'} ${r.explain || ''}`;
+  box.innerHTML = `
+    <div style="display:flex;justify-content:space-between;font-size:12.5px;color:var(--text-mid);margin-bottom:4px;">
+      <span>${st.cur + 1} / ${total}</span><span>맞힌 개수 ${st.score}</span>
+    </div>
+    ${side('a', r.a)}${side('b', r.b)}
+    <div class="ornament-korean" style="margin-top:6px;min-height:36px;">${msg}</div>
+    <div style="display:flex;justify-content:center;gap:8px;margin-top:8px;">
+      ${st.answered
+        ? `<button class="btn btn-${st.cls}" style="font-size:13px;padding:7px 16px;" onclick="pcNext('${sid}')">${st.cur >= total - 1 ? '결과 보기' : '다음 문제 ▶'}</button>`
+        : `<button class="btn btn-${st.cls}" style="font-size:15px;padding:7px 20px;font-family:'Jua',sans-serif;" onclick="pcAnswer('${sid}',true)">같아요</button>
+           <button class="btn btn-${st.cls}" style="font-size:15px;padding:7px 20px;font-family:'Jua',sans-serif;" onclick="pcAnswer('${sid}',false)">달라요</button>`}
+    </div>`;
+  renderMelodyStaff(`pc-staff-${sid}-a`, r.a.measures, st.key, st.time);
+  renderMelodyStaff(`pc-staff-${sid}-b`, r.b.measures, st.key, st.time);
+}
+function pcPlay(sid, k, btn) {
+  const st = PC_STATE[sid];
+  if (st) playMelody(st.rounds[st.cur][k].measures, st.key, st.bpm, btn);
+}
+function pcAnswer(sid, same) {
+  const st = PC_STATE[sid];
+  if (!st || st.answered) return;
+  st.answered = true;
+  st.lastOk = same === !!st.rounds[st.cur].same;
+  if (st.lastOk) st.score++;
+  pcRender(sid);
+}
+function pcNext(sid) {
+  const st = PC_STATE[sid];
+  if (!st) return;
+  if (st.cur >= st.rounds.length - 1) st.done = true;
+  else { st.cur++; st.answered = false; }
+  pcRender(sid);
+}
+function pcReset(sid) {
+  const st = PC_STATE[sid];
+  if (!st) return;
+  Object.assign(st, { cur: 0, score: 0, answered: false, done: false });
+  pcRender(sid);
+}
+function buildPhraseCompare(s, meta, slideId) {
+  const c = s.color || 'a';
+  const el = document.createElement('div');
+  el.className = 'slide';
+  PC_STATE[slideId] = {
+    rounds: s.rounds || [], key: s.key || 'C', time: s.time || null, bpm: s.bpm,
+    cur: 0, score: 0, answered: false, done: false, color: colorOf(c, meta), cls: clsOf(c)
+  };
+  el.innerHTML = `
+    <h1 class="slide-title" style="font-size:clamp(16px,2.4vw,22px);">${s.title}</h1>
+    ${s.subtitle ? `<p class="slide-subtitle">${s.subtitle}</p>` : ''}
+    <div class="ornament-card ${clsOf(c)}" style="max-width:640px;" id="pc-game-${slideId}"></div>
+  `;
+  queueVexRender(() => pcRender(slideId));
+  return el;
+}
+
+/* ── BEAT GAME ── a drum pattern with the first beat of each bar louder;
+   count along and decide: 2박자 (march) or 3박자 (minuet). Later rounds
+   shrink the loud/soft gap so the student has to listen harder. After
+   answering, the beats light up grouped by bar. */
+const BG_STATE = {};
+function bgRender(sid) {
+  const st = BG_STATE[sid];
+  const box = document.getElementById(`bg-game-${sid}`);
+  if (!st || !box) return;
+  const total = st.rounds.length;
+  if (st.done) {
+    box.innerHTML = `
+      <div style="font-family:'Jua',sans-serif;font-size:18px;text-align:center;margin:18px 0 10px;">다 풀었어요! ${total}문제 중 <b style="color:${st.color};">${st.score}개</b> 정답</div>
+      <div style="text-align:center;"><button class="btn btn-${st.cls}" style="font-size:13px;padding:7px 16px;" onclick="bgReset('${sid}')">다시 하기</button></div>`;
+    return;
+  }
+  const r = st.rounds[st.cur];
+  const beats = r.meter * st.bars;
+  const dots = st.answered ? Array.from({ length: beats }, (_, i) => {
+    const strong = i % r.meter === 0, lit = i === st.lit;
+    const sz = strong ? 26 : 16;
+    return `${strong && i ? '<span style="width:10px;"></span>' : ''}<span style="width:${sz}px;height:${sz}px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;
+      font-size:11px;font-family:'Jua',sans-serif;color:#fff;background:${lit ? st.color : strong ? st.accent : '#C9C6BF'};
+      transform:scale(${lit ? 1.25 : 1});transition:transform .08s;">${strong ? 1 : ''}</span>`;
+  }).join('') : '<span style="font-size:13px;color:var(--text-mid);">쿵(센 박)이 몇 번마다 나오는지 하나, 둘, 셋 세어봐요</span>';
+  const msg = !st.answered ? (st.heard ? '몇 박자일까요?' : '‘▶ 소리 듣기’를 눌러봐요.')
+    : `<b style="color:${st.lastOk ? st.color : '#B0413E'};">${st.lastOk ? '정답!' : '아쉬워요!'}</b> ${r.meter === 3 ? '쿵-짝-짝, 3박자예요. 미뉴에트처럼 춤추는 박자예요.' : '쿵-짝, 2박자예요. 씩씩하게 걷는 행진 박자예요.'}`;
+  box.innerHTML = `
+    <div style="display:flex;justify-content:space-between;font-size:12.5px;color:var(--text-mid);margin-bottom:6px;">
+      <span>${st.cur + 1} / ${total} · ${r.label || ''}</span><span>맞힌 개수 ${st.score}</span>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:5px;min-height:34px;">${dots}</div>
+    <div class="ornament-korean" style="margin-top:8px;min-height:36px;">${msg}</div>
+    <div style="display:flex;justify-content:center;flex-wrap:wrap;gap:8px;margin-top:8px;">
+      <button class="btn" style="font-size:12.5px;padding:7px 14px;" onclick="bgPlay('${sid}')">▶ 소리 ${st.heard ? '다시 ' : ''}듣기</button>
+      ${st.answered
+        ? `<button class="btn btn-${st.cls}" style="font-size:13px;padding:7px 16px;" onclick="bgNext('${sid}')">${st.cur >= total - 1 ? '결과 보기' : '다음 문제 ▶'}</button>`
+        : [2, 3].map(m => `<button class="btn btn-${st.cls}" ${st.heard ? '' : 'disabled'} style="font-size:14px;padding:7px 14px;font-family:'Jua',sans-serif;" onclick="bgAnswer('${sid}',${m})">${m === 2 ? '2박자 (행진)' : '3박자 (춤)'}</button>`).join('')}
+    </div>`;
+}
+function bgPlay(sid) {
+  const st = BG_STATE[sid];
+  if (!st || st.done) return;
+  st.timers.forEach(clearTimeout); st.timers = [];
+  const r = st.rounds[st.cur];
+  st.heard = true;
+  bgRender(sid);
+  const ctx = getAudioCtx();
+  const beat = 60 / (r.bpm || 110);
+  const t0 = ctx.currentTime + 0.08;
+  const weakGain = 0.16, strongGain = weakGain * (1 + (r.accent == null ? 2 : r.accent));
+  for (let i = 0; i < r.meter * st.bars; i++) {
+    const t = t0 + i * beat, strong = i % r.meter === 0;
+    // low "쿵" on the first beat, short high "짝" on the others
+    const osc = ctx.createOscillator(), g = ctx.createGain();
+    osc.connect(g); g.connect(ctx.destination);
+    osc.type = strong ? 'sine' : 'triangle';
+    osc.frequency.setValueAtTime(strong ? 150 : 880, t);
+    if (strong) osc.frequency.exponentialRampToValueAtTime(60, t + 0.2);
+    g.gain.setValueAtTime(strong ? strongGain : weakGain, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + (strong ? 0.28 : 0.08));
+    osc.start(t); osc.stop(t + 0.3);
+    if (st.answered) st.timers.push(setTimeout(() => { st.lit = i; bgRender(sid); }, (t - ctx.currentTime) * 1000));
+  }
+  if (st.answered) st.timers.push(setTimeout(() => { st.lit = -1; bgRender(sid); }, (t0 - ctx.currentTime + r.meter * st.bars * beat) * 1000));
+}
+function bgAnswer(sid, m) {
+  const st = BG_STATE[sid];
+  if (!st || st.answered) return;
+  st.answered = true;
+  st.lastOk = m === st.rounds[st.cur].meter;
+  if (st.lastOk) st.score++;
+  bgPlay(sid);
+}
+function bgNext(sid) {
+  const st = BG_STATE[sid];
+  if (!st) return;
+  st.timers.forEach(clearTimeout); st.lit = -1;
+  if (st.cur >= st.rounds.length - 1) st.done = true;
+  else { st.cur++; st.answered = false; st.heard = false; }
+  bgRender(sid);
+}
+function bgReset(sid) {
+  const st = BG_STATE[sid];
+  if (!st) return;
+  st.timers.forEach(clearTimeout);
+  Object.assign(st, { cur: 0, score: 0, answered: false, heard: false, done: false, lit: -1 });
+  bgRender(sid);
+}
+function buildBeatGame(s, meta, slideId) {
+  const c = s.color || 'a';
+  const el = document.createElement('div');
+  el.className = 'slide';
+  BG_STATE[slideId] = {
+    rounds: s.rounds || [], bars: s.bars || 4, cur: 0, score: 0, answered: false, heard: false, done: false,
+    lit: -1, timers: [], color: colorOf(c, meta), accent: colorOf(c === 'a' ? 'b' : 'a', meta), cls: clsOf(c)
+  };
+  el.innerHTML = `
+    <h1 class="slide-title" style="font-size:clamp(16px,2.4vw,22px);">${s.title}</h1>
+    ${s.subtitle ? `<p class="slide-subtitle">${s.subtitle}</p>` : ''}
+    <div class="ornament-card ${clsOf(c)}" style="max-width:600px;" id="bg-game-${slideId}"></div>
+  `;
+  queueVexRender(() => bgRender(slideId));
   return el;
 }
 
@@ -5467,6 +5796,9 @@ function loadLesson(data) {
     else if (s.type === 'finger_compare') el = buildFingerCompare(s, meta, sid);
     else if (s.type === 'chromatic_buzz') el = buildChromaticBuzz(s, meta, sid);
     else if (s.type === 'direction_game') el = buildDirectionGame(s, meta, sid);
+    else if (s.type === 'form_map') el = buildFormMap(s, meta, sid);
+    else if (s.type === 'phrase_compare') el = buildPhraseCompare(s, meta, sid);
+    else if (s.type === 'beat_game') el = buildBeatGame(s, meta, sid);
     else if (s.type === 'video_feature')   el = buildVideoFeature(s, meta, sid);
     else return;
     el.id = sid;

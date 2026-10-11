@@ -2209,7 +2209,7 @@ function renderWalkthroughStaff(sid) {
   const W = widths.reduce((a, b) => a + b, 0) + 10;
   // finger step mode has no 쪽지 rules to show, so no rooms: shorter canvas
   const rooms = !((st.spots || st.fingering) && st.mode === 'step');
-  const H = rooms ? 124 : (st.measures.flat().some(sp => sp.endsWith(':8t')) ? 118 : 100);
+  const H = rooms ? 124 : 100;
   const renderer = new Renderer(container, Renderer.Backends.SVG);
   renderer.resize(W, H);
   const ctx = renderer.getContext();
@@ -2298,7 +2298,12 @@ function renderWalkthroughStaff(sid) {
   });
   const svg = container.querySelector('svg');
   if (svg) {
-    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    // grow the canvas if a beam/stem hangs below the planned height
+    // (beamed groups with stems down reach past the bottom staff line)
+    const bb = svg.getBBox();
+    const realH = Math.ceil(Math.max(H, bb.y + bb.height + 4));
+    svg.setAttribute('height', realH);
+    svg.setAttribute('viewBox', `0 0 ${W} ${realH}`);
     svg.style.width = '100%'; svg.style.height = 'auto';
     // .staff-ornament svg forces max-width:100% !important — finger modes
     // need a real cap so the string diagram below still fits on screen
@@ -2767,7 +2772,9 @@ const MEL_BEATS = { '8': 0.5, '8t': 1 / 3, q: 1, h: 2, hd: 3 };
 function beamRuns(notes, durs) {
   const beams = [];
   let run = [];
-  const flush = () => { if (run.length > 1) beams.push(new Vex.Flow.Beam(run)); run = []; };
+  // auto_stem: one shared stem direction for the whole group (from its
+  // average height), so mixed up/down stems don't tangle under one beam
+  const flush = () => { if (run.length > 1) beams.push(new Vex.Flow.Beam(run, true)); run = []; };
   // plain eighths and triplet eighths beam separately even when adjacent
   notes.forEach((n, i) => {
     const d = durs[i];
@@ -2819,7 +2826,10 @@ function renderMelodyStaff(id, measures, key, time, color) {
   });
   const svg = container.querySelector('svg');
   if (svg) {
-    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    const bb = svg.getBBox();
+    const realH = Math.ceil(Math.max(H, bb.y + bb.height + 4));
+    svg.setAttribute('height', realH);
+    svg.setAttribute('viewBox', `0 0 ${W} ${realH}`);
     svg.style.cssText = `width:100%;max-width:${Math.round(W * 0.78)}px;height:auto;display:block;margin:0 auto;`;
   }
 }

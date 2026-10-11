@@ -2199,17 +2199,17 @@ function renderWalkthroughStaff(sid) {
   const container = document.getElementById(`wt-staff-${sid}`);
   if (!st || !container) return;
   container.innerHTML = '';
-  const { Renderer, Stave, StaveNote, Voice, Formatter, Accidental, Barline, Beam, Dot } = Vex.Flow;
+  const { Renderer, Stave, StaveNote, Voice, Formatter, Accidental, Barline, Beam, Dot, Tuplet } = Vex.Flow;
   const measures = st.measures;
   const perNote = 62;
-  const DUR_W = { '8': 0.7, q: 1, h: 1.15, hd: 1.3 };
+  const DUR_W = { '8': 0.7, '8t': 0.62, q: 1, h: 1.15, hd: 1.3 };
   const widths = measures.map((m, i) =>
     (i === 0 ? 70 + Object.keys(WT_KEY_ACC[st.key] || {}).length * 11 + (st.time ? 24 : 0) : 18)
     + m.reduce((w, spec) => w + perNote * (DUR_W[spec.split(':')[2] || 'q'] || 1), 0) + 6);
   const W = widths.reduce((a, b) => a + b, 0) + 10;
   // finger step mode has no 쪽지 rules to show, so no rooms: shorter canvas
-  const rooms = !(st.spots && st.mode === 'step');
-  const H = rooms ? 124 : 100;
+  const rooms = !((st.spots || st.fingering) && st.mode === 'step');
+  const H = rooms ? 124 : (st.measures.flat().some(sp => sp.endsWith(':8t')) ? 118 : 100);
   const renderer = new Renderer(container, Renderer.Backends.SVG);
   renderer.resize(W, H);
   const ctx = renderer.getContext();
@@ -2242,7 +2242,7 @@ function renderWalkthroughStaff(sid) {
     stave.setContext(ctx).draw();
     const notes = measures[mi].map(() => {
       const info = st.notes[flat];
-      const vn = new StaveNote({ keys: [info.pos], duration: info.dur, auto_stem: true });
+      const vn = new StaveNote({ keys: [info.pos], duration: info.dur === '8t' ? '8' : info.dur, auto_stem: true });
       if (info.dur === 'hd') Dot.buildAndAttach([vn], { all: true });
       let color = ink;
       if (flat === st.cur) color = strong;
@@ -2256,10 +2256,21 @@ function renderWalkthroughStaff(sid) {
       vn._wtIdx = flat++;
       return vn;
     });
+    const durs = measures[mi].map(spec => spec.split(':')[2] || 'q');
+    // every 3 consecutive '8t' notes form a triplet (셋잇단음표)
+    const tuplets = [];
+    for (let i = 0; i < notes.length; i++) {
+      if (durs[i] === '8t' && durs[i + 1] === '8t' && durs[i + 2] === '8t') {
+        // bracket under the notes so it doesn't collide with the pitch labels above
+        tuplets.push(new Tuplet(notes.slice(i, i + 3), { num_notes: 3, notes_occupied: 2, location: Tuplet.LOCATION_BOTTOM, bracketed: false }));
+        i += 2;
+      }
+    }
     const voice = new Voice({ num_beats: notes.length, beat_value: 4 }).setStrict(false).addTickables(notes);
-    const beams = beamRuns(notes, measures[mi].map(spec => spec.split(':')[2] || 'q'));
+    const beams = beamRuns(notes, durs);
     new Formatter().joinVoices([voice]).formatToStave([voice], stave);
     voice.draw(ctx, stave);
+    tuplets.forEach(t => t.setContext(ctx).draw());
     beams.forEach(b => { b.setStyle({ fillStyle: ink, strokeStyle: ink }); b.setContext(ctx).draw(); });
     // pitch labels above revealed notes
     notes.forEach(vn => {
@@ -2291,14 +2302,58 @@ function renderWalkthroughStaff(sid) {
     svg.style.width = '100%'; svg.style.height = 'auto';
     // .staff-ornament svg forces max-width:100% !important — finger modes
     // need a real cap so the string diagram below still fits on screen
-    if (st.spots) svg.style.setProperty('max-width', `${Math.round(W * 0.85)}px`, 'important');
+    if (st.spots || st.fingering) svg.style.setProperty('max-width', `${Math.round(W * 0.85)}px`, 'important');
   }
+}
+
+/* All four strings, low G at the bottom like pitch on the staff. The note
+   being played gets a dot (finger number inside) on its string; the note
+   before it stays as a faint ghost, so a jump across strings is visible.
+   cur/prev: { s: 'G'|'D'|'A'|'E', f: finger, label, freq } */
+const STRING_OPEN_MIDI = { G: 55, D: 62, A: 69, E: 76 };
+function stringBoardSvg(cur, prev, strong) {
+  const order = ['E', 'A', 'D', 'G'];
+  const unit = 38, x0 = 46, y0 = 16, gap = 21;
+  const W = x0 + 7 * unit + 24, H = y0 + 3 * gap + 18;
+  const semiOf = n => Math.round(69 + 12 * Math.log2(n.freq / 440)) - STRING_OPEN_MIDI[n.s];
+  let g = `<rect x="${x0 - 9}" y="${y0 - 8}" width="6" height="${3 * gap + 16}" rx="1.5" fill="#5A4A3A"/>`;
+  order.forEach((name, i) => {
+    const y = y0 + i * gap, on = cur && cur.s === name;
+    g += `
+      <text x="${x0 - 16}" y="${y + 4}" font-size="${on ? 13 : 11}" text-anchor="end" fill="${on ? strong : '#8A877F'}" font-family="'Jua', sans-serif">${name}현</text>
+      <line x1="${x0 - 3}" y1="${y}" x2="${W - 6}" y2="${y}" stroke="${on ? strong : '#C9A44A'}" stroke-width="${on ? 3.2 : 1.6}"/>`;
+  });
+  const dot = (n, ghost) => {
+    const y = y0 + order.indexOf(n.s) * gap, semi = semiOf(n);
+    const x = semi <= 0 ? x0 + 4 : x0 + semi * unit;
+    const col = ghost ? '#C9C6BF' : strong;
+    const body = n.f === 0
+      ? `<circle cx="${x}" cy="${y}" r="${ghost ? 6 : 8}" fill="#FFF" stroke="${col}" stroke-width="2.4"/>`
+      : `<circle cx="${x}" cy="${y}" r="${ghost ? 6 : 9}" fill="${col}"/>`;
+    const num = ghost ? '' : `<text x="${x}" y="${y + 4}" font-size="11" text-anchor="middle" fill="${n.f === 0 ? strong : '#FFF'}" font-family="'Jua', sans-serif">${n.f}</text>`;
+    const name = ghost ? '' : `<text x="${x + 13}" y="${y - 6}" font-size="13" fill="${strong}" font-family="'Jua', sans-serif">${n.label}</text>`;
+    return body + num + name;
+  };
+  if (prev) g += dot(prev, true);
+  if (cur) g += dot(cur, false);
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:${Math.round(W * 1.2)}px;height:auto;display:block;margin:0 auto;">${g}</svg>`;
 }
 
 function wtPanelHtml(sid) {
   const st = WT_STATE[sid];
   const info = st.notes[st.cur];
   const answered = st.mode === 'step' || st.answered;
+  if (st.fingering) {
+    const fg = info && st.fingering[st.cur];
+    const prev = st.cur > 0 ? st.fingering[st.cur - 1] : null;
+    const board = stringBoardSvg(fg && { ...fg, label: info.label, freq: info.freq },
+      prev && { ...prev, freq: st.notes[st.cur - 1].freq }, st.color);
+    const msg = !info ? '‘다음 음 ▶’을 눌러서 한 음씩 따라가 봐요.'
+      : `<b style="color:${st.color};">${info.label}</b> — ${fg ? fg.hint || '' : ''}`;
+    return `
+      <div style="margin-top:2px;">${board}</div>
+      <div class="ornament-korean" style="margin-top:6px;min-height:40px;">${msg}</div>`;
+  }
   if (st.spots) {
     const spotOf = l => st.spots.find(sp => sp.label === l);
     const cur = info && spotOf(info.label);
@@ -2435,7 +2490,8 @@ function buildAccidentalWalkthrough(s, meta, slideId) {
     cur: mode === 'step' ? -1 : 0, answered: false, score: 0, done: false,
     color: colorOf(c, meta), light: meta[`color_${c}_light`] || '#F2F2F2', cls: clsOf(c),
     accent: colorOf(c === 'a' ? 'b' : 'a', meta),
-    spots: s.fingerboard ? FINGERBOARDS[s.fingerboard] : null
+    spots: s.fingerboard ? FINGERBOARDS[s.fingerboard] : null,
+    fingering: s.fingering || null
   };
   el.innerHTML = `
     <h1 class="slide-title" style="font-size:clamp(16px,2.4vw,22px);">${s.title}</h1>
@@ -2705,14 +2761,20 @@ function buildDirectionGame(s, meta, slideId) {
 /* ── MELODY HELPERS ── draw a few measures of a real tune (same note spec
    strings as the walkthrough) and play them back with the 쪽지/약속 rules
    applied, so excerpts from the student's own piece sound right. */
-const MEL_BEATS = { '8': 0.5, q: 1, h: 2, hd: 3 };
+const MEL_BEATS = { '8': 0.5, '8t': 1 / 3, q: 1, h: 2, hd: 3 };
 // beam each run of consecutive eighths together, the way the Suzuki score
 // prints them (4 eighths under one beam), instead of VexFlow's per-beat pairs
 function beamRuns(notes, durs) {
   const beams = [];
   let run = [];
   const flush = () => { if (run.length > 1) beams.push(new Vex.Flow.Beam(run)); run = []; };
-  notes.forEach((n, i) => { if (durs[i] === '8') run.push(n); else flush(); });
+  // plain eighths and triplet eighths beam separately even when adjacent
+  notes.forEach((n, i) => {
+    const d = durs[i];
+    if (d !== '8' && d !== '8t') { flush(); return; }
+    if (run.length && durs[i - 1] !== d) flush();
+    run.push(n);
+  });
   flush();
   return beams;
 }

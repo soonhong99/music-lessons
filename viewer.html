@@ -3191,6 +3191,16 @@ const ND_CHOICES = {
 function ndBestKey(sid, li) { return `nd-best-${(document.title || '').slice(0, 30)}-${sid}-${li}`; }
 function ndGetBest(sid, li) { try { const v = localStorage.getItem(ndBestKey(sid, li)); return v ? parseFloat(v) : null; } catch (e) { return null; } }
 function ndSetBest(sid, li, t) { try { localStorage.setItem(ndBestKey(sid, li), String(t)); } catch (e) {} }
+// two taps: the first asks "정말 지울까요?", the second clears every level's record
+function ndClearBest(sid, really) {
+  const st = ND_STATE[sid];
+  if (!st) return;
+  if (!really) { st.confirmClear = true; ndRender(sid); return; }
+  st.levels.forEach((_, li) => { try { localStorage.removeItem(ndBestKey(sid, li)); } catch (e) {} });
+  st.confirmClear = false;
+  ndRender(sid);
+}
+function ndCancelClear(sid) { const st = ND_STATE[sid]; if (st) { st.confirmClear = false; ndRender(sid); } }
 
 function ndAnswerOf(st, info) {
   return st.ask === 'name' ? WT_NAME[info.letter] : st.ask === 'string' ? info.s : info.f;
@@ -3223,7 +3233,15 @@ function ndRender(sid) {
       <div style="display:flex;flex-direction:column;gap:8px;align-items:center;">
         ${st.levels.map((lv, li) => `<button class="btn btn-${st.cls}" style="font-size:15px;padding:9px 22px;font-family:'Jua',sans-serif;min-width:220px;" onclick="ndStart('${sid}',${li})">
           ${lv.label}${best(li) != null ? ` <span style="font-size:11.5px;opacity:.85;">(최고 ${best(li).toFixed(1)}초)</span>` : ''}</button>`).join('')}
-      </div>`;
+      </div>
+      ${st.levels.some((_, li) => best(li) != null) ? `
+        <div style="text-align:center;margin-top:12px;font-size:12px;">
+          ${st.confirmClear
+            ? `정말 최고 기록을 지울까요?
+               <button class="btn" style="font-size:11.5px;padding:3px 10px;margin-left:4px;" onclick="ndClearBest('${sid}', true)">지우기</button>
+               <button class="btn" style="font-size:11.5px;padding:3px 10px;" onclick="ndCancelClear('${sid}')">취소</button>`
+            : `<button class="btn" style="font-size:11.5px;padding:3px 10px;opacity:.75;" onclick="ndClearBest('${sid}')">기록 지우기</button>`}
+        </div>` : ''}`;
     return;
   }
   if (st.done) {

@@ -3087,6 +3087,229 @@ function buildBeatGame(s, meta, slideId) {
   return el;
 }
 
+/* ── NOTE READING ── where a written note is played in first position:
+   the highest open string at or below it, unless that's more than a
+   raised 3rd finger away. Fingers follow the 붙여요/떼요 spacing:
+   1 = 1–2 semitones up, 2 = 3–4, 3 = 5–6. */
+function firstPosition(freq) {
+  const midi = Math.round(69 + 12 * Math.log2(freq / 440));
+  const order = ['E', 'A', 'D', 'G'];
+  const s = order.find(n => midi >= STRING_OPEN_MIDI[n]) || 'G';
+  const semi = midi - STRING_OPEN_MIDI[s];
+  const f = semi === 0 ? 0 : semi <= 2 ? 1 : semi <= 4 ? 2 : semi <= 6 ? 3 : 4;
+  let hint = '';
+  if (f === 2) hint = semi === 3 ? '2번 손가락을 1번에 붙여요.' : '2번 손가락을 3번에 붙여요.';
+  else if (f === 0) hint = '손가락을 누르지 않아요. 개방현이에요.';
+  return { s, f, semi, hint };
+}
+
+function noteInfo(pos, key) {
+  const n = wtAnalyze([[pos]], key || 'C')[0];
+  return { ...n, ...firstPosition(n.freq) };
+}
+
+function renderSingleNote(id, pos, key, color, opts) {
+  const container = document.getElementById(id);
+  if (!container) return;
+  container.innerHTML = '';
+  const { Renderer, Stave, StaveNote, Voice, Formatter, Accidental } = Vex.Flow;
+  const o = opts || {};
+  const W = o.width || 150, H = 150;
+  const renderer = new Renderer(container, Renderer.Backends.SVG);
+  renderer.resize(W, H);
+  const ctx = renderer.getContext();
+  const stave = new Stave(4, 22, W - 10);
+  stave.addClef('treble');
+  if (key && key !== 'C') stave.addKeySignature(key);
+  ctx.setFillStyle('#3A3833'); ctx.setStrokeStyle('#3A3833');
+  stave.setContext(ctx).draw();
+  const [p, acc] = pos.split(':');
+  const vn = new StaveNote({ keys: [p], duration: 'w' });
+  if (acc) vn.addModifier(new Accidental(acc), 0);
+  vn.setStyle({ fillStyle: color, strokeStyle: color });
+  const voice = new Voice({ num_beats: 4, beat_value: 4 }).addTickables([vn]);
+  new Formatter().joinVoices([voice]).formatToStave([voice], stave);
+  voice.draw(ctx, stave);
+  const svg = container.querySelector('svg');
+  if (svg) {
+    // crop to what was actually drawn (clef top to lowest ledger line) so
+    // a single note doesn't carry a tall empty canvas around
+    const bb = svg.getBBox();
+    const top = Math.floor(bb.y - 4);
+    const realH = Math.ceil(bb.height + 8);
+    svg.setAttribute('height', realH);
+    svg.setAttribute('viewBox', `0 ${top} ${W} ${realH}`);
+    svg.style.cssText = `width:100%;max-width:${o.maxWidth || W}px;height:auto;display:block;margin:0 auto;`;
+  }
+}
+
+/* note_gallery: rows of single notes (e.g. above/below the staff), each a
+   tap-to-hear card with its name and where it's played */
+const NG_STATE = {};
+function buildNoteGallery(s, meta, slideId) {
+  const el = document.createElement('div');
+  el.className = 'slide';
+  NG_STATE[slideId] = s;
+  const cards = [];
+  el.innerHTML = `
+    <h1 class="slide-title" style="font-size:clamp(16px,2.4vw,22px);">${s.title}</h1>
+    ${s.subtitle ? `<p class="slide-subtitle">${s.subtitle}</p>` : ''}
+    <div class="ornament-card ${clsOf(s.color || 'a')}" style="max-width:660px;">
+      ${(s.rows || []).map((r, ri) => `
+        <div style="margin-top:${ri ? 8 : 0}px;">
+          <b style="font-family:'Jua',sans-serif;font-size:14px;color:${colorOf(r.color || 'a', meta)};">${r.label}</b>
+          <div style="display:grid;grid-template-columns:repeat(${r.notes.length}, minmax(0,1fr));gap:4px;margin-top:3px;">
+            ${r.notes.map((n, ni) => {
+              const id = `ng-${slideId}-${ri}-${ni}`;
+              cards.push({ id, pos: n.pos, color: colorOf(r.color || 'a', meta) });
+              const info = noteInfo(n.pos, s.key);
+              return `<button onclick="playFingerNote(${info.freq.toFixed(2)}, this)" style="border:1.5px solid ${meta[`color_${r.color || 'a'}_border`]};background:#fff;border-radius:10px;padding:2px 2px 5px;cursor:pointer;min-width:0;">
+                <div id="${id}"></div>
+                <div style="font-family:'Jua',sans-serif;font-size:13px;color:var(--text);">${n.label || info.label}</div>
+                <div style="font-size:10.5px;color:var(--text-mid);line-height:1.3;">${n.note || `${info.s}현 ${info.f === 0 ? '개방현' : info.f + '번'}`}</div>
+              </button>`;
+            }).join('')}
+          </div>
+        </div>`).join('')}
+      ${s.hint ? `<div class="ornament-korean" style="margin-top:8px;">${s.hint}</div>` : ''}
+    </div>
+  `;
+  cards.forEach(c => queueVexRender(() => renderSingleNote(c.id, c.pos, s.key, c.color, { width: 92, maxWidth: 82 })));
+  return el;
+}
+
+/* note_drill: one note at a time, answer by name / string / finger.
+   A wrong answer doesn't move on (mistake counted); a right one plays the
+   note and advances. The clock runs from the first answer, and the best
+   time per level is kept in this browser (localStorage, optional). */
+const ND_STATE = {};
+const ND_CHOICES = {
+  name: ['도', '레', '미', '파', '솔', '라', '시'],
+  string: ['G', 'D', 'A', 'E'],
+  finger: [0, 1, 2, 3, 4]
+};
+function ndBestKey(sid, li) { return `nd-best-${(document.title || '').slice(0, 30)}-${sid}-${li}`; }
+function ndGetBest(sid, li) { try { const v = localStorage.getItem(ndBestKey(sid, li)); return v ? parseFloat(v) : null; } catch (e) { return null; } }
+function ndSetBest(sid, li, t) { try { localStorage.setItem(ndBestKey(sid, li), String(t)); } catch (e) {} }
+
+function ndAnswerOf(st, info) {
+  return st.ask === 'name' ? WT_NAME[info.letter] : st.ask === 'string' ? info.s : info.f;
+}
+function ndChoiceLabel(ask, c) {
+  return ask === 'string' ? `${c}현` : ask === 'finger' ? (c === 0 ? '0 (개방현)' : `${c}번`) : c;
+}
+
+function ndStart(sid, li) {
+  const st = ND_STATE[sid];
+  const pool = st.levels[li].pool;
+  const qs = [];
+  for (let i = 0; i < st.count; i++) {
+    let p;
+    do { p = pool[Math.floor(Math.random() * pool.length)]; } while (pool.length > 1 && p === qs[qs.length - 1]);
+    qs.push(p);
+  }
+  Object.assign(st, { level: li, qs, cur: 0, mistakes: 0, t0: null, paused: 0, done: false, msg: '', lastOk: null, busy: false, time: null, newBest: false });
+  ndRender(sid);
+}
+
+function ndRender(sid) {
+  const st = ND_STATE[sid];
+  const box = document.getElementById(`nd-game-${sid}`);
+  if (!st || !box) return;
+  const best = li => ndGetBest(sid, li);
+  if (st.level == null) {
+    box.innerHTML = `
+      <div class="ornament-korean" style="margin-bottom:10px;">${st.intro || '단계를 골라서 시작해요!'}</div>
+      <div style="display:flex;flex-direction:column;gap:8px;align-items:center;">
+        ${st.levels.map((lv, li) => `<button class="btn btn-${st.cls}" style="font-size:15px;padding:9px 22px;font-family:'Jua',sans-serif;min-width:220px;" onclick="ndStart('${sid}',${li})">
+          ${lv.label}${best(li) != null ? ` <span style="font-size:11.5px;opacity:.85;">(최고 ${best(li).toFixed(1)}초)</span>` : ''}</button>`).join('')}
+      </div>`;
+    return;
+  }
+  if (st.done) {
+    box.innerHTML = `
+      <div style="text-align:center;font-family:'Jua',sans-serif;">
+        <div style="font-size:20px;margin:10px 0 4px;">다 풀었어요!</div>
+        <div style="font-size:16px;">${st.qs.length}문제 · <b style="color:${st.color};">${st.time.toFixed(1)}초</b> · 틀린 횟수 ${st.mistakes}번</div>
+        <div style="font-size:14px;margin-top:6px;color:${st.newBest ? st.color : 'var(--text-mid)'};">${st.newBest ? '새 최고 기록이에요!' : `최고 기록: ${best(st.level).toFixed(1)}초`}</div>
+      </div>
+      <div style="display:flex;justify-content:center;gap:8px;margin-top:14px;">
+        <button class="btn btn-${st.cls}" style="font-size:13px;padding:7px 16px;" onclick="ndStart('${sid}',${st.level})">한 번 더!</button>
+        <button class="btn" style="font-size:13px;padding:7px 16px;" onclick="ndBack('${sid}')">단계 고르기</button>
+      </div>`;
+    return;
+  }
+  const info = noteInfo(st.qs[st.cur], st.key);
+  const showBoard = st.ask !== 'name' && st.lastOk === true;
+  box.innerHTML = `
+    <div style="display:flex;justify-content:space-between;font-size:12.5px;color:var(--text-mid);">
+      <span>${st.levels[st.level].label} · ${st.cur + 1} / ${st.qs.length}</span><span>틀린 횟수 ${st.mistakes}</span>
+    </div>
+    <div id="nd-note-${sid}" style="margin:2px auto 0;"></div>
+    ${st.ask !== 'name' ? `<div style="min-height:${showBoard ? 0 : 0}px;">${showBoard ? stringBoardSvg({ ...info, label: info.label }, null, st.color) : ''}</div>` : ''}
+    <div class="ornament-korean" style="text-align:center;min-height:24px;margin-top:2px;">${st.msg || st.prompt}</div>
+    <div style="display:flex;justify-content:center;flex-wrap:wrap;gap:6px;margin-top:4px;">
+      ${ND_CHOICES[st.ask].map(c => `<button class="btn btn-${st.cls}" ${st.busy ? 'disabled' : ''} style="font-size:16px;padding:8px ${st.ask === 'name' ? 13 : 16}px;font-family:'Jua',sans-serif;" onclick="ndAnswer('${sid}','${c}')">${ndChoiceLabel(st.ask, c)}</button>`).join('')}
+    </div>`;
+  renderSingleNote(`nd-note-${sid}`, st.qs[st.cur], st.key, st.lastOk === false ? '#B0413E' : st.color, { width: 150, maxWidth: 205 });
+}
+
+function ndAnswer(sid, c) {
+  const st = ND_STATE[sid];
+  if (!st || st.busy || st.done) return;
+  if (st.t0 == null) st.t0 = performance.now();
+  const info = noteInfo(st.qs[st.cur], st.key);
+  const right = String(ndAnswerOf(st, info)) === String(c);
+  if (!right) {
+    st.mistakes++;
+    st.lastOk = false;
+    st.msg = st.ask === 'name' ? '다시! 줄인지 칸인지 세어봐요.'
+      : st.ask === 'string' ? '다시! 개방현 레·라·미·솔 중 어디서 가까운지 생각해봐요.'
+      : '다시! 개방현에서 몇 칸 올라가는지 생각해봐요.';
+    ndRender(sid);
+    return;
+  }
+  st.lastOk = true;
+  st.busy = true;
+  const pauseStart = performance.now();  // the "정답!" pause isn't the child's time
+  playFingerNote(info.freq);
+  const where = `${info.s}현 ${info.f === 0 ? '개방현' : info.f + '번 손가락'}`;
+  st.msg = `<b style="color:${st.color};">정답! ${info.label}</b>${st.ask === 'name' ? '' : ` — ${where}. ${info.f === 2 ? info.hint : ''}`}`;
+  ndRender(sid);
+  setTimeout(() => {
+    st.busy = false; st.lastOk = null; st.msg = '';
+    st.paused += performance.now() - pauseStart;
+    if (st.cur >= st.qs.length - 1) {
+      st.done = true;
+      st.time = (performance.now() - st.t0 - st.paused) / 1000;
+      const prev = ndGetBest(sid, st.level);
+      st.newBest = prev == null || st.time < prev;
+      if (st.newBest) ndSetBest(sid, st.level, st.time);
+    } else st.cur++;
+    ndRender(sid);
+  }, st.ask === 'name' ? 450 : 1300);
+}
+
+function ndBack(sid) { const st = ND_STATE[sid]; if (st) { st.level = null; ndRender(sid); } }
+
+function buildNoteDrill(s, meta, slideId) {
+  const c = s.color || 'a';
+  const el = document.createElement('div');
+  el.className = 'slide';
+  ND_STATE[slideId] = {
+    ask: s.ask || 'name', key: s.key || 'C', levels: s.levels || [], count: s.count || 10,
+    intro: s.intro, prompt: s.prompt || '이 음은 무엇일까요?',
+    level: null, color: colorOf(c, meta), cls: clsOf(c)
+  };
+  el.innerHTML = `
+    <h1 class="slide-title" style="font-size:clamp(16px,2.4vw,22px);">${s.title}</h1>
+    ${s.subtitle ? `<p class="slide-subtitle">${s.subtitle}</p>` : ''}
+    <div class="ornament-card ${clsOf(c)}" style="max-width:560px;" id="nd-game-${slideId}"></div>
+  `;
+  queueVexRender(() => ndRender(slideId));
+  return el;
+}
+
 /* ── CHORD GALLERY BUILDER ── multiple root pairs (major/minor), each with
    its own play button, so the bright/dark contrast is heard repeat across
    different chords instead of just one example. */
@@ -5871,6 +6094,8 @@ function loadLesson(data) {
     else if (s.type === 'form_map') el = buildFormMap(s, meta, sid);
     else if (s.type === 'phrase_compare') el = buildPhraseCompare(s, meta, sid);
     else if (s.type === 'beat_game') el = buildBeatGame(s, meta, sid);
+    else if (s.type === 'note_gallery') el = buildNoteGallery(s, meta, sid);
+    else if (s.type === 'note_drill') el = buildNoteDrill(s, meta, sid);
     else if (s.type === 'video_feature')   el = buildVideoFeature(s, meta, sid);
     else return;
     el.id = sid;

@@ -3328,6 +3328,282 @@ function buildNoteDrill(s, meta, slideId) {
   return el;
 }
 
+/* ── STRING TAP ── all four strings with every first-position spot (0–4)
+   for a key; the student taps where to press. Spots sit at their real
+   semitone distance, so 붙여요 pairs look close. A note playable two ways
+   (open string = previous string's 4th finger) accepts both.
+   modes: explore (names shown, tap to hear), practice (names shown, find
+   the note on the staff), challenge (names hidden, 도-anchored hints),
+   reverse (a spot lights up, answer with the note name). */
+const ST_STATE = {};
+const ST_ORDER = ['E', 'A', 'D', 'G'];
+
+function stSpots(key) {
+  const out = [];
+  ST_ORDER.slice().reverse().forEach(s => {
+    const open = STRING_OPEN_MIDI[s];
+    // each finger takes the scale note it lands on in this key
+    const letters = 'cdefgab';
+    const openLetter = { G: 'g', D: 'd', A: 'a', E: 'e' }[s];
+    const oct0 = Math.floor(open / 12) - 1;
+    let li = letters.indexOf(openLetter), oct = oct0;
+    for (let f = 0; f <= 4; f++) {
+      const pos = `${letters[li]}/${oct}`;
+      const n = wtAnalyze([[pos]], key)[0];
+      const midi = Math.round(69 + 12 * Math.log2(n.freq / 440));
+      out.push({ s, f, semi: midi - open, midi, label: n.label, freq: n.freq, pos });
+      li++; if (li === 7) { li = 0; oct++; }
+    }
+  });
+  return out;
+}
+
+function stBoardSvg(sid) {
+  const st = ST_STATE[sid];
+  const unit = 38, x0 = 58, y0 = 22, gap = 29;
+  const W = x0 + 7 * unit + 26, H = y0 + 3 * gap + 22;
+  const ink = '#3A3833', dim = '#B8B5AE';
+  const info = st.q;
+  let g = `<rect x="${x0 - 11}" y="${y0 - 9}" width="6" height="${3 * gap + 18}" rx="1.5" fill="#5A4A3A"/>`;
+  ST_ORDER.forEach((name, i) => {
+    const y = y0 + i * gap;
+    const openLabel = st.spots.find(p => p.s === name && p.f === 0).label;
+    const showOpen = st.mode !== 'challenge' || st.hint >= 1 || st.solved;
+    g += `
+      <text x="${x0 - 18}" y="${y + 4}" font-size="12" text-anchor="end" fill="#6A675F" font-family="'Jua', sans-serif">${name}현${showOpen ? ` <tspan fill="${st.accent}">${openLabel}</tspan>` : ''}</text>
+      <line x1="${x0 - 5}" y1="${y}" x2="${W - 6}" y2="${y}" stroke="#C9A44A" stroke-width="1.8"/>`;
+  });
+  const isDo = p => p.label === '도';
+  st.spots.forEach(p => {
+    const x = p.f === 0 ? x0 + 2 : x0 + p.semi * unit;
+    const y = y0 + ST_ORDER.indexOf(p.s) * gap;
+    const key = `${p.s}${p.f}`;
+    const isAns = st.answers && st.answers.includes(key);
+    const lit = st.lit && st.lit.includes(key);
+    const wrong = st.wrong === key;
+    const onPath = st.path && st.path.find(q => q.key === key);
+    const hintDo = isDo(p) && (st.mode === 'explore' || (st.mode === 'challenge' && st.hint >= 1 && !st.solved));
+    let col = ink;
+    if (wrong) col = '#B0413E';
+    else if (lit || (st.solved && isAns) || (st.hint >= 3 && isAns && !st.solved)) col = st.color;
+    else if (onPath || hintDo) col = st.accent;
+    else if (st.mode === 'reverse' && !lit) col = dim;
+    const r = lit || (st.solved && isAns) ? 10.5 : 9;
+    const showName = st.mode === 'explore' || st.mode === 'practice'
+      || (st.mode === 'challenge' && (st.solved && isAns || onPath || hintDo))
+      || (st.mode === 'reverse' && st.solved && lit);
+    const name = onPath ? onPath.label : p.label;
+    const blink = st.hint >= 3 && isAns && !st.solved ? `<animate attributeName="opacity" values="1;0.25;1" dur="0.9s" repeatCount="indefinite"/>` : '';
+    const dot = p.f === 0
+      ? `<circle cx="${x}" cy="${y}" r="${r}" fill="#FFF" stroke="${col}" stroke-width="2.4">${blink}</circle>`
+      : `<circle cx="${x}" cy="${y}" r="${r}" fill="${col}">${blink}</circle>`;
+    const click = st.mode === 'reverse' ? '' : `onclick="stTap('${sid}','${key}')"`;
+    g += `
+      <g ${click} style="${click ? 'cursor:pointer' : ''}">
+        <rect x="${x - unit / 2}" y="${y - gap / 2}" width="${unit}" height="${gap}" fill="transparent"/>
+        ${dot}
+        <text x="${x}" y="${y + 4}" font-size="10.5" text-anchor="middle" fill="${p.f === 0 ? col : '#FFF'}" font-family="'Jua', sans-serif" style="pointer-events:none">${p.f}</text>
+        ${showName ? `<text x="${x + 11}" y="${y - 7}" font-size="11.5" fill="${col}" font-family="'Jua', sans-serif" style="pointer-events:none">${name}</text>` : ''}
+      </g>`;
+  });
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:${Math.round(W * 1.25)}px;height:auto;display:block;margin:0 auto;">${g}</svg>`;
+}
+
+function stWhere(key) { const f = +key.slice(1); return `${key[0]}현 ${f === 0 ? '개방현' : f + '번'}`; }
+
+// shortest 도-레-미 count from the nearest 도 to the target, along the
+// spots a beginner would use (the lower string for a shared pitch)
+function stDoPath(st, midi) {
+  const scale = st.spots.slice().sort((a, b) => a.midi - b.midi || (a.f === 0 ? -1 : 1))
+    .filter((p, i, arr) => i === 0 || p.midi !== arr[i - 1].midi);
+  const dos = scale.filter(p => p.label === '도');
+  const ti = scale.findIndex(p => p.midi === midi);
+  let best = null;
+  dos.forEach(d => {
+    const di = scale.indexOf(d);
+    if (best == null || Math.abs(di - ti) < Math.abs(best - ti)) best = di;
+  });
+  if (best == null || ti < 0) return [];
+  const step = ti >= best ? 1 : -1;
+  const path = [];
+  for (let i = best; i !== ti + step; i += step) path.push({ key: `${scale[i].s}${scale[i].f}`, label: scale[i].label });
+  return path;
+}
+
+function stNewQuestion(sid) {
+  const st = ST_STATE[sid];
+  const pool = st.levels[st.level].pool;
+  let pos;
+  do { pos = pool[Math.floor(Math.random() * pool.length)]; } while (pool.length > 1 && pos === st.lastPos);
+  st.lastPos = pos;
+  const n = wtAnalyze([[pos]], st.key)[0];
+  const midi = Math.round(69 + 12 * Math.log2(n.freq / 440));
+  const answers = st.spots.filter(p => p.midi === midi).map(p => `${p.s}${p.f}`);
+  Object.assign(st, { q: { pos, label: n.label, freq: n.freq, midi }, answers, hint: 0, path: null, wrong: null, solved: false, msg: '' });
+  // reverse mode lights one of the possible spots
+  st.lit = st.mode === 'reverse' ? [answers[Math.floor(Math.random() * answers.length)]] : null;
+}
+
+function stStart(sid, li) {
+  const st = ST_STATE[sid];
+  Object.assign(st, { level: li, n: 0, mistakes: 0, hints: 0, t0: null, paused: 0, done: false, newBest: false, lastPos: null });
+  stNewQuestion(sid);
+  stRender(sid);
+}
+
+function stBestKey(sid, li) { return `st-best-${(document.title || '').slice(0, 30)}-${sid}-${li}`; }
+function stGetBest(sid, li) { try { const v = localStorage.getItem(stBestKey(sid, li)); return v ? parseFloat(v) : null; } catch (e) { return null; } }
+function stClearBest(sid, really) {
+  const st = ST_STATE[sid];
+  if (!really) { st.confirmClear = true; stRender(sid); return; }
+  st.levels.forEach((_, li) => { try { localStorage.removeItem(stBestKey(sid, li)); } catch (e) {} });
+  st.confirmClear = false; stRender(sid);
+}
+
+function stRender(sid) {
+  const st = ST_STATE[sid];
+  const box = document.getElementById(`st-game-${sid}`);
+  if (!st || !box) return;
+  if (st.mode === 'explore') {
+    box.innerHTML = `${stBoardSvg(sid)}<div class="ornament-korean" style="margin-top:6px;min-height:40px;">${st.msg || st.intro || ''}</div>`;
+    return;
+  }
+  const best = li => stGetBest(sid, li);
+  if (st.level == null) {
+    const any = st.levels.some((_, li) => best(li) != null);
+    box.innerHTML = `
+      <div class="ornament-korean" style="margin-bottom:10px;">${st.intro || '단계를 골라서 시작해요!'}</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;">
+        ${st.levels.map((lv, li) => `<button class="btn btn-${st.cls}" style="font-size:14px;padding:8px 16px;font-family:'Jua',sans-serif;" onclick="stStart('${sid}',${li})">
+          ${lv.label}${best(li) != null ? ` <span style="font-size:11px;opacity:.85;">(최고 ${best(li).toFixed(1)}초)</span>` : ''}</button>`).join('')}
+      </div>
+      ${any ? `<div style="text-align:center;margin-top:12px;font-size:12px;">${st.confirmClear
+        ? `정말 최고 기록을 지울까요? <button class="btn" style="font-size:11.5px;padding:3px 10px;" onclick="stClearBest('${sid}',true)">지우기</button> <button class="btn" style="font-size:11.5px;padding:3px 10px;" onclick="ST_STATE['${sid}'].confirmClear=false;stRender('${sid}')">취소</button>`
+        : `<button class="btn" style="font-size:11.5px;padding:3px 10px;opacity:.75;" onclick="stClearBest('${sid}')">기록 지우기</button>`}</div>` : ''}`;
+    return;
+  }
+  if (st.done) {
+    box.innerHTML = `
+      <div style="text-align:center;font-family:'Jua',sans-serif;">
+        <div style="font-size:20px;margin:10px 0 4px;">다 풀었어요!</div>
+        <div style="font-size:15.5px;">${st.count}문제 · <b style="color:${st.color};">${st.time.toFixed(1)}초</b> · 틀린 횟수 ${st.mistakes}${st.mode === 'challenge' ? ` · 힌트 ${st.hints}번` : ''}</div>
+        <div style="font-size:14px;margin-top:6px;color:${st.newBest ? st.color : 'var(--text-mid)'};">${st.newBest ? '새 최고 기록이에요!' : `최고 기록: ${best(st.level).toFixed(1)}초`}</div>
+        ${st.mode === 'challenge' && st.hints ? '<div style="font-size:12.5px;color:var(--text-mid);margin-top:4px;">다음엔 힌트를 덜 쓰고 도전해봐요!</div>' : ''}
+      </div>
+      <div style="display:flex;justify-content:center;gap:8px;margin-top:14px;">
+        <button class="btn btn-${st.cls}" style="font-size:13px;padding:7px 16px;" onclick="stStart('${sid}',${st.level})">한 번 더!</button>
+        <button class="btn" style="font-size:13px;padding:7px 16px;" onclick="ST_STATE['${sid}'].level=null;stRender('${sid}')">단계 고르기</button>
+      </div>`;
+    return;
+  }
+  const prompt = st.mode === 'reverse' ? '빛나는 자리는 무슨 음일까요?'
+    : st.mode === 'practice' ? `<b>${st.q.label}</b>을(를) 짚는 자리를 눌러요` : '이 음을 짚는 자리를 눌러요';
+  const hintBtn = st.mode === 'challenge' && !st.solved && st.hint < 3
+    ? `<button class="btn" style="font-size:12px;padding:5px 12px;" onclick="stHint('${sid}')">힌트 ${st.hint + 1}</button>` : '';
+  const names = ['도', '레', '미', '파', '솔', '라', '시'].map(l => {
+    const sp = st.spots.find(p => p.label.startsWith(l)); return sp ? sp.label : l;
+  });
+  box.innerHTML = `
+    <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text-mid);">
+      <span>${st.levels[st.level].label} · ${st.n + 1} / ${st.count}</span>
+      <span>틀린 횟수 ${st.mistakes}${st.mode === 'challenge' ? ` · 힌트 ${st.hints}` : ''}</span>
+    </div>
+    ${st.mode === 'reverse' ? '' : `<div id="st-note-${sid}"></div>`}
+    ${stBoardSvg(sid)}
+    <div class="ornament-korean" style="text-align:center;min-height:22px;margin-top:3px;font-size:13px;">${st.msg || prompt}</div>
+    <div style="display:flex;justify-content:center;flex-wrap:wrap;gap:6px;margin-top:4px;">
+      ${st.mode === 'reverse' && !st.solved ? names.map(nm => `<button class="btn btn-${st.cls}" style="font-size:15px;padding:6px 11px;font-family:'Jua',sans-serif;" onclick="stName('${sid}','${nm}')">${nm}</button>`).join('') : ''}
+      ${hintBtn}
+    </div>`;
+  if (st.mode !== 'reverse') renderSingleNote(`st-note-${sid}`, st.q.pos, st.key, st.wrong ? '#B0413E' : st.color, { width: 150, maxWidth: 150 });
+}
+
+function stHint(sid) {
+  const st = ST_STATE[sid];
+  if (!st || st.solved || st.hint >= 3) return;
+  if (st.t0 == null) st.t0 = performance.now();
+  st.hint++; st.hints++;
+  if (st.hint === 1) st.msg = '주황 점이 <b>도</b>예요. G현 3번이 낮은 도, A현 2번이 도예요. 도에서부터 세어봐요!';
+  if (st.hint === 2) {
+    st.path = stDoPath(st, st.q.midi);
+    st.msg = `도에서부터 세어봐요: <b>${st.path.map(p => p.label).join(' → ')}</b>`;
+  }
+  if (st.hint === 3) st.msg = '깜빡이는 자리가 정답이에요. 눌러봐요!';
+  stRender(sid);
+}
+
+function stSolve(sid, extraMsg) {
+  const st = ST_STATE[sid];
+  st.solved = true; st.wrong = null;
+  const pauseStart = performance.now();
+  playFingerNote(st.q.freq);
+  const where = st.answers.map(stWhere);
+  st.msg = `<b style="color:${st.color};">정답! ${st.q.label}</b> — ${where[0]}${where.length > 1 ? `, <b>${where[1]}</b>으로 짚어도 정답이에요!` : ''}${extraMsg || ''}`;
+  stRender(sid);
+  setTimeout(() => {
+    st.paused += performance.now() - pauseStart;
+    st.n++;
+    if (st.n >= st.count) {
+      st.done = true;
+      st.time = (performance.now() - st.t0 - st.paused) / 1000;
+      const prev = stGetBest(sid, st.level);
+      st.newBest = prev == null || st.time < prev;
+      if (st.newBest) { try { localStorage.setItem(stBestKey(sid, st.level), String(st.time)); } catch (e) {} }
+    } else stNewQuestion(sid);
+    stRender(sid);
+  }, st.answers.length > 1 ? 1900 : 1300);
+}
+
+function stTap(sid, key) {
+  const st = ST_STATE[sid];
+  if (!st) return;
+  if (st.mode === 'explore') {
+    const p = st.spots.find(x => `${x.s}${x.f}` === key);
+    playFingerNote(p.freq);
+    const same = st.spots.filter(x => x.midi === p.midi).map(x => `${x.s}${x.f}`);
+    st.lit = same;
+    st.msg = `<b style="color:${st.color};">${p.label}</b> — ${same.map(stWhere).join(', ')}${same.length > 1 ? ' (둘 다 같은 음이에요!)' : ''}`;
+    stRender(sid);
+    return;
+  }
+  if (st.solved || st.done || st.level == null) return;
+  if (st.t0 == null) st.t0 = performance.now();
+  if (st.answers.includes(key)) { stSolve(sid); return; }
+  st.mistakes++;
+  st.wrong = key;
+  const p = st.spots.find(x => `${x.s}${x.f}` === key);
+  st.msg = `그 자리는 <b>${p.label}</b>이에요. 다시 찾아봐요!${st.mode === 'challenge' && st.hint < 3 ? ' 힌트를 써도 돼요.' : ''}`;
+  stRender(sid);
+}
+
+function stName(sid, nm) {
+  const st = ST_STATE[sid];
+  if (!st || st.solved || st.done) return;
+  if (st.t0 == null) st.t0 = performance.now();
+  if (nm === st.q.label) { stSolve(sid); return; }
+  st.mistakes++;
+  st.msg = `다시! 빛나는 자리는 <b>${nm}</b>이 아니에요. 개방현에서부터 세어봐요.`;
+  stRender(sid);
+}
+
+function buildStringTap(s, meta, slideId) {
+  const c = s.color || 'a';
+  const el = document.createElement('div');
+  el.className = 'slide';
+  ST_STATE[slideId] = {
+    mode: s.mode || 'practice', key: s.key || 'G', spots: stSpots(s.key || 'G'),
+    levels: s.levels || [], count: s.count || 10, intro: s.intro,
+    level: null, lit: null, color: colorOf(c, meta), accent: '#C26A12', cls: clsOf(c)
+  };
+  el.innerHTML = `
+    <h1 class="slide-title" style="font-size:clamp(16px,2.4vw,22px);">${s.title}</h1>
+    ${s.subtitle ? `<p class="slide-subtitle">${s.subtitle}</p>` : ''}
+    <div class="ornament-card ${clsOf(c)}" style="max-width:600px;" id="st-game-${slideId}"></div>
+  `;
+  queueVexRender(() => stRender(slideId));
+  return el;
+}
+
 /* ── CHORD GALLERY BUILDER ── multiple root pairs (major/minor), each with
    its own play button, so the bright/dark contrast is heard repeat across
    different chords instead of just one example. */
@@ -6114,6 +6390,7 @@ function loadLesson(data) {
     else if (s.type === 'beat_game') el = buildBeatGame(s, meta, sid);
     else if (s.type === 'note_gallery') el = buildNoteGallery(s, meta, sid);
     else if (s.type === 'note_drill') el = buildNoteDrill(s, meta, sid);
+    else if (s.type === 'string_tap') el = buildStringTap(s, meta, sid);
     else if (s.type === 'video_feature')   el = buildVideoFeature(s, meta, sid);
     else return;
     el.id = sid;

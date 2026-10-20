@@ -2790,7 +2790,7 @@ function renderMelodyStaff(id, measures, key, time, color) {
   const container = document.getElementById(id);
   if (!container) return;
   container.innerHTML = '';
-  const { Renderer, Stave, StaveNote, Voice, Formatter, Accidental, Barline, Beam, Dot } = Vex.Flow;
+  const { Renderer, Stave, StaveNote, Voice, Formatter, Accidental, Barline, Beam, Dot, Tuplet } = Vex.Flow;
   const perNote = 52, DUR_W = { '8': 0.72, q: 1, h: 1.2, hd: 1.35 };
   const head = 66 + Object.keys(WT_KEY_ACC[key] || {}).length * 11 + (time ? 24 : 0);
   const widths = measures.map((m, i) => (i === 0 ? head : 14)
@@ -2813,16 +2813,25 @@ function renderMelodyStaff(id, measures, key, time, color) {
     stave.setContext(ctx).draw();
     const notes = m.map(spec => {
       const [pos, acc, dur] = spec.split(':');
-      const vn = new StaveNote({ keys: [pos], duration: dur || 'q', auto_stem: true });
+      const vn = new StaveNote({ keys: [pos], duration: dur === '8t' ? '8' : (dur || 'q'), auto_stem: true });
       if (dur === 'hd') Dot.buildAndAttach([vn], { all: true });
       if (acc) vn.addModifier(new Accidental(acc), 0);
       return vn;
     });
+    const durs = m.map(spec => spec.split(':')[2] || 'q');
+    const tuplets = [];
+    for (let i = 0; i + 2 < notes.length; i++) {
+      if (durs[i] === '8t' && durs[i + 1] === '8t' && durs[i + 2] === '8t') {
+        tuplets.push(new Tuplet(notes.slice(i, i + 3), { num_notes: 3, notes_occupied: 2, location: Tuplet.LOCATION_BOTTOM, bracketed: false }));
+        i += 2;
+      }
+    }
     const voice = new Voice({ num_beats: 3, beat_value: 4 }).setStrict(false).addTickables(notes);
-    const beams = beamRuns(notes, m.map(spec => spec.split(':')[2] || 'q'));
+    const beams = beamRuns(notes, durs);
     new Formatter().joinVoices([voice]).formatToStave([voice], stave);
     voice.draw(ctx, stave);
     beams.forEach(b => b.setContext(ctx).draw());
+    tuplets.forEach(t => t.setContext(ctx).draw());
   });
   const svg = container.querySelector('svg');
   if (svg) {
@@ -3601,6 +3610,219 @@ function buildStringTap(s, meta, slideId) {
     <div class="ornament-card ${clsOf(c)}" style="max-width:600px;" id="st-game-${slideId}"></div>
   `;
   queueVexRender(() => stRender(slideId));
+  return el;
+}
+
+/* ── RHYTHM RULER ── beats drawn as a ruler with a ball bouncing once per
+   beat (metronome click on each), and the rhythm's notes placed at their
+   true time. Lets a child *see* that 3 eighths spill into the next beat
+   while a triplet fits all 3 inside one bounce.
+   A row is { beats, events: [[onsetBeats, pos, lenBeats, syllable]] } or
+   the shorthand pattern "e3" (8분음표 3개) / "t3" (셋잇단음표). */
+const RR_PATTERNS = {
+  e3: { beats: 2, events: [[0, 'a/4', 0.5, '토'], [0.5, 'a/4', 0.5, '끼'], [1, 'a/4', 0.5, '토']] },
+  t3: { beats: 2, events: [[0, 'a/4', 1 / 3, '코'], [1 / 3, 'a/4', 1 / 3, '끼'], [2 / 3, 'a/4', 1 / 3, '리']] }
+};
+const RR_STATE = {};
+
+function rrRow(r) { return r.pattern ? { ...RR_PATTERNS[r.pattern], ...r } : r; }
+
+function rrSvg(row, now, hideNotes, color, accent) {
+  const beats = row.beats;
+  const W = 340, x0 = 22, unit = (W - x0 - 14) / beats, H = 78;
+  let g = '';
+  for (let b = 0; b <= beats; b++) {
+    const x = x0 + b * unit;
+    g += `<line x1="${x}" y1="20" x2="${x}" y2="70" stroke="${b === beats ? '#DDD' : '#C9C6BF'}" stroke-width="1.2" stroke-dasharray="${b === beats ? '3 3' : ''}"/>`;
+    if (b < beats) g += `<text x="${x + unit / 2}" y="13" font-size="11" text-anchor="middle" fill="#8A877F" font-family="'Jua', sans-serif">${b + 1}박</text>`;
+  }
+  if (!hideNotes) {
+    row.events.forEach(([on, , len, syl], i) => {
+      const x = x0 + on * unit + 2, w = Math.max(len * unit - 4, 14);
+      const lit = now != null && now >= on && now < on + len;
+      g += `<rect x="${x}" y="46" width="${w}" height="20" rx="8" fill="${lit ? color : accent}" opacity="${lit ? 1 : 0.55}"/>
+        <text x="${x + Math.min(w, 26) / 2}" y="60" font-size="12" text-anchor="middle" fill="#FFF" font-family="'Jua', sans-serif">${syl || ''}</text>`;
+    });
+  }
+  if (now != null && now >= 0 && now <= beats) {
+    // bounce: lowest (touching the ruler) on every beat
+    const frac = now - Math.floor(now);
+    const x = x0 + now * unit, y = 38 - Math.sin(frac * Math.PI) * 16;
+    g += `<circle cx="${x}" cy="${y}" r="6" fill="${color}"/>`;
+  }
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:${W * 1.12}px;height:auto;display:block;margin:0 auto;">${g}</svg>`;
+}
+
+// plays a row (clicks on every beat + the notes) and animates the ruler
+// into the element with id boxId; returns total ms
+function rrPlay(key, row, boxId, color, accent, bpm, onDone) {
+  if (RR_STATE[key] && RR_STATE[key].raf) cancelAnimationFrame(RR_STATE[key].raf);
+  const ctx = getAudioCtx();
+  const beat = 60 / (bpm || 80);
+  const t0 = ctx.currentTime + 0.12;
+  for (let b = 0; b < row.beats; b++) {
+    const t = t0 + b * beat;
+    const o = ctx.createOscillator(), gn = ctx.createGain();
+    o.connect(gn); gn.connect(ctx.destination);
+    o.type = 'triangle'; o.frequency.setValueAtTime(b === 0 ? 1900 : 1500, t);
+    gn.gain.setValueAtTime(0.12, t); gn.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
+    o.start(t); o.stop(t + 0.06);
+  }
+  row.events.forEach(([on, pos, len]) => {
+    const freq = wtAnalyze([[pos]], 'C')[0].freq;
+    const t = t0 + on * beat, d = len * beat;
+    const o = ctx.createOscillator(), gn = ctx.createGain();
+    o.connect(gn); gn.connect(ctx.destination);
+    o.setPeriodicWave(getViolinWave(ctx));
+    o.frequency.setValueAtTime(freq, t);
+    gn.gain.setValueAtTime(0, t);
+    gn.gain.linearRampToValueAtTime(0.24, t + 0.015);
+    gn.gain.setValueAtTime(0.24, t + d * 0.8);
+    gn.gain.linearRampToValueAtTime(0, t + d * 0.95);
+    o.start(t); o.stop(t + d);
+  });
+  const st = RR_STATE[key] = { raf: null };
+  const perf0 = performance.now() + 120;
+  const total = row.beats * beat * 1000;
+  const frame = () => {
+    const ms = performance.now() - perf0;
+    const box = document.getElementById(boxId);
+    if (box) box.innerHTML = rrSvg(row, ms < 0 ? 0 : Math.min(ms / 1000 / beat, row.beats), false, color, accent);
+    if (ms < total + 60) st.raf = requestAnimationFrame(frame);
+    else { if (box) box.innerHTML = rrSvg(row, null, false, color, accent); st.raf = null; if (onDone) onDone(); }
+  };
+  frame();
+  return total;
+}
+
+/* rhythm_ruler: several labelled rows, each with its own ▶ (and an
+   optional mini staff showing how it's written) */
+const RRS_STATE = {};
+function buildRhythmRuler(s, meta, slideId) {
+  const c = s.color || 'a';
+  const el = document.createElement('div');
+  el.className = 'slide';
+  const rows = (s.rows || []).map(rrRow);
+  RRS_STATE[slideId] = { rows, bpm: s.bpm, color: colorOf(c, meta), accent: colorOf(c === 'a' ? 'b' : 'a', meta), hints: s.rows.map(r => r.hint || '') };
+  el.innerHTML = `
+    <h1 class="slide-title" style="font-size:clamp(16px,2.4vw,22px);">${s.title}</h1>
+    ${s.subtitle ? `<p class="slide-subtitle">${s.subtitle}</p>` : ''}
+    <div class="ornament-card ${clsOf(c)}" style="max-width:640px;">
+      ${rows.map((r, i) => `
+        <div style="display:flex;align-items:center;gap:8px;margin-top:${i ? 8 : 0}px;">
+          <div style="width:${r.staff ? 118 : 96}px;flex-shrink:0;text-align:center;">
+            <b style="font-family:'Jua',sans-serif;font-size:14px;color:var(--text);">${r.label}</b>
+            ${r.sub ? `<div style="font-size:11px;color:var(--text-mid);">${r.sub}</div>` : ''}
+            ${r.staff ? `<div id="rr-staff-${slideId}-${i}"></div>` : ''}
+            <button class="btn btn-${clsOf(c)}" style="font-size:11.5px;padding:4px 12px;margin-top:3px;" onclick="rrsPlay('${slideId}',${i})">▶ 듣기</button>
+          </div>
+          <div id="rr-box-${slideId}-${i}" style="flex:1;min-width:0;">${rrSvg(r, null, false, colorOf(c, meta), colorOf(c === 'a' ? 'b' : 'a', meta))}</div>
+        </div>`).join('')}
+      <div class="ornament-korean" id="rr-msg-${slideId}" style="margin-top:8px;min-height:22px;">${s.hint || ''}</div>
+    </div>
+  `;
+  rows.forEach((r, i) => { if (r.staff) queueVexRender(() => renderMelodyStaff(`rr-staff-${slideId}-${i}`, [r.staff], 'C', null)); });
+  return el;
+}
+function rrsPlay(sid, i) {
+  const st = RRS_STATE[sid];
+  if (!st) return;
+  rrPlay(`${sid}-${i}`, st.rows[i], `rr-box-${sid}-${i}`, st.color, st.accent, st.bpm);
+  const msg = document.getElementById(`rr-msg-${sid}`);
+  if (msg && st.hints[i]) msg.innerHTML = st.hints[i];
+}
+
+/* rhythm_guess: hear a rhythm over the clicks, choose 토-끼-토 (e3) or
+   코-끼-리 (t3); the ruler stays blank until answered, then replays. */
+const RG_STATE = {};
+const RG_LABEL = { e3: '토-끼-토 (8분음표 3개)', t3: '코-끼-리 (셋잇단음표)' };
+function rgRender(sid) {
+  const st = RG_STATE[sid];
+  const box = document.getElementById(`rg-game-${sid}`);
+  if (!st || !box) return;
+  const total = st.rounds.length;
+  if (st.done) {
+    box.innerHTML = `
+      <div style="font-family:'Jua',sans-serif;font-size:18px;text-align:center;margin:18px 0 10px;">다 풀었어요! ${total}문제 중 <b style="color:${st.color};">${st.score}개</b> 정답</div>
+      <div style="text-align:center;"><button class="btn btn-${st.cls}" style="font-size:13px;padding:7px 16px;" onclick="rgReset('${sid}')">다시 하기</button></div>`;
+    return;
+  }
+  const r = st.rounds[st.cur];
+  const msg = !st.answered ? (st.heard ? '토-끼-토일까요, 코-끼-리일까요?' : '‘▶ 듣기’를 누르고, 똑딱 소리와 같이 들어봐요.')
+    : `<b style="color:${st.lastOk ? st.color : '#B0413E'};">${st.lastOk ? '정답!' : '아쉬워요!'}</b> ${r.answer === 't3'
+        ? '셋잇단음표예요. 공이 한 번 튀는 동안 세 음이 쏙 들어가요.'
+        : '8분음표 3개예요. 세 번째 음은 다음 박에 걸쳐요.'} ${r.explain || ''}`;
+  box.innerHTML = `
+    <div style="display:flex;justify-content:space-between;font-size:12.5px;color:var(--text-mid);margin-bottom:4px;">
+      <span>${st.cur + 1} / ${total}${r.label ? ' · ' + r.label : ''}</span><span>맞힌 개수 ${st.score}</span>
+    </div>
+    <div id="rg-box-${sid}">${rrSvg(r, null, !st.answered, st.color, st.accent)}</div>
+    <div class="ornament-korean" style="margin-top:6px;min-height:40px;">${msg}</div>
+    <div style="display:flex;justify-content:center;flex-wrap:wrap;gap:8px;margin-top:6px;">
+      <button class="btn" style="font-size:12.5px;padding:7px 14px;" onclick="rgPlay('${sid}')">▶ ${st.heard ? '다시 ' : ''}듣기</button>
+      ${st.answered
+        ? `<button class="btn btn-${st.cls}" style="font-size:13px;padding:7px 16px;" onclick="rgNext('${sid}')">${st.cur >= total - 1 ? '결과 보기' : '다음 문제 ▶'}</button>`
+        : ['e3', 't3'].map(k => `<button class="btn btn-${st.cls}" ${st.heard ? '' : 'disabled'} style="font-size:13.5px;padding:7px 12px;font-family:'Jua',sans-serif;" onclick="rgAnswer('${sid}','${k}')">${RG_LABEL[k]}</button>`).join('')}
+    </div>`;
+}
+function rgPlay(sid) {
+  const st = RG_STATE[sid];
+  if (!st || st.done) return;
+  const r = st.rounds[st.cur];
+  if (!st.heard) { st.heard = true; rgRender(sid); }
+  if (st.answered) rrPlay(sid, r, `rg-box-${sid}`, st.color, st.accent, r.bpm || st.bpm);
+  else {
+    // before answering: sound + bouncing ball only, notes hidden
+    rrPlay(sid, { ...r, events: r.events }, `rg-hidden-${sid}`, st.color, st.accent, r.bpm || st.bpm);
+    const box = document.getElementById(`rg-box-${sid}`);
+    if (box) {
+      const beat = 60 / (r.bpm || st.bpm || 80) * 1000, perf0 = performance.now() + 120, total = r.beats * beat;
+      const frame = () => {
+        const ms = performance.now() - perf0;
+        const b = document.getElementById(`rg-box-${sid}`);
+        if (!b || st.answered) return;
+        b.innerHTML = rrSvg(r, ms < 0 ? 0 : Math.min(ms / beat, r.beats), true, st.color, st.accent);
+        if (ms < total + 60) requestAnimationFrame(frame); else b.innerHTML = rrSvg(r, null, true, st.color, st.accent);
+      };
+      frame();
+    }
+  }
+}
+function rgAnswer(sid, k) {
+  const st = RG_STATE[sid];
+  if (!st || st.answered) return;
+  st.answered = true;
+  st.lastOk = k === st.rounds[st.cur].answer;
+  if (st.lastOk) st.score++;
+  rgRender(sid);
+  rgPlay(sid);
+}
+function rgNext(sid) {
+  const st = RG_STATE[sid];
+  if (!st) return;
+  if (st.cur >= st.rounds.length - 1) st.done = true;
+  else { st.cur++; st.answered = false; st.heard = false; }
+  rgRender(sid);
+}
+function rgReset(sid) {
+  const st = RG_STATE[sid];
+  if (st) { Object.assign(st, { cur: 0, score: 0, answered: false, heard: false, done: false }); rgRender(sid); }
+}
+function buildRhythmGuess(s, meta, slideId) {
+  const c = s.color || 'a';
+  const el = document.createElement('div');
+  el.className = 'slide';
+  RG_STATE[slideId] = {
+    rounds: (s.rounds || []).map(r => { const x = rrRow(r); return { ...x, answer: r.answer || r.pattern }; }),
+    bpm: s.bpm, cur: 0, score: 0, answered: false, heard: false, done: false,
+    color: colorOf(c, meta), accent: colorOf(c === 'a' ? 'b' : 'a', meta), cls: clsOf(c)
+  };
+  el.innerHTML = `
+    <h1 class="slide-title" style="font-size:clamp(16px,2.4vw,22px);">${s.title}</h1>
+    ${s.subtitle ? `<p class="slide-subtitle">${s.subtitle}</p>` : ''}
+    <div class="ornament-card ${clsOf(c)}" style="max-width:600px;" id="rg-game-${slideId}"></div>
+  `;
+  queueVexRender(() => rgRender(slideId));
   return el;
 }
 
@@ -6391,6 +6613,8 @@ function loadLesson(data) {
     else if (s.type === 'note_gallery') el = buildNoteGallery(s, meta, sid);
     else if (s.type === 'note_drill') el = buildNoteDrill(s, meta, sid);
     else if (s.type === 'string_tap') el = buildStringTap(s, meta, sid);
+    else if (s.type === 'rhythm_ruler') el = buildRhythmRuler(s, meta, sid);
+    else if (s.type === 'rhythm_guess') el = buildRhythmGuess(s, meta, sid);
     else if (s.type === 'video_feature')   el = buildVideoFeature(s, meta, sid);
     else return;
     el.id = sid;

@@ -3367,6 +3367,68 @@ function stSpots(key) {
   return out;
 }
 
+/* Staff with the open strings (솔·레·라·미) drawn as coloured rails — a
+   pale chord of the four open notes at the left plus a band across the
+   staff at each height — so the student can count 줄·칸 up from the rail
+   just below the note. `show` lists which rails to draw. */
+const GUIDE_POS = { G: 'g/3', D: 'd/4', A: 'a/4', E: 'e/5' };
+const GUIDE_COLOR = { G: '#B07A0E', D: '#2E8A5A', A: '#2E5A9E', E: '#A0446A' };
+const GUIDE_NAME = { G: '솔', D: '레', A: '라', E: '미' };
+function renderGuideStaff(id, pos, key, color, show) {
+  const container = document.getElementById(id);
+  if (!container) return;
+  container.innerHTML = '';
+  const { Renderer, Stave, StaveNote, Voice, Formatter, Accidental } = Vex.Flow;
+  const W = 262, H = 170;
+  const renderer = new Renderer(container, Renderer.Backends.SVG);
+  renderer.resize(W, H);
+  const ctx = renderer.getContext();
+  const stave = new Stave(4, 34, 196);
+  stave.addClef('treble');
+  if (key && key !== 'C') stave.addKeySignature(key);
+  ctx.setFillStyle('#3A3833'); ctx.setStrokeStyle('#3A3833');
+  stave.setContext(ctx).draw();
+  const [p, acc] = pos.split(':');
+  const target = new StaveNote({ keys: [p], duration: 'w' });
+  if (acc) target.addModifier(new Accidental(acc), 0);
+  target.setStyle({ fillStyle: color, strokeStyle: color });
+  const ticks = [];
+  let chord = null;
+  if (show.length) {
+    const order = ['G', 'D', 'A', 'E'].filter(n => show.includes(n));
+    chord = new StaveNote({ keys: order.map(n => GUIDE_POS[n]), duration: 'w' });
+    order.forEach((n, i) => chord.setKeyStyle(i, { fillStyle: GUIDE_COLOR[n], strokeStyle: GUIDE_COLOR[n] }));
+    chord.setLedgerLineStyle({ strokeStyle: '#B8B5AE' });
+    ticks.push(chord);
+  }
+  ticks.push(target);
+  const voice = new Voice({ num_beats: 4 * ticks.length, beat_value: 4 }).setStrict(false).addTickables(ticks);
+  new Formatter().joinVoices([voice]).formatToStave([voice], stave);
+  // rails first so the notes sit on top
+  show.forEach(n => {
+    const g = new StaveNote({ keys: [GUIDE_POS[n]], duration: 'w' });
+    g.setStave(stave);
+    const y = g.getYs()[0];
+    const x0 = stave.getNoteStartX() - 4, x1 = stave.getX() + stave.getWidth();
+    ctx.save();
+    ctx.setFillStyle(GUIDE_COLOR[n] + '33');
+    ctx.fillRect(x0, y - 4, x1 - x0, 8);
+    ctx.setFillStyle(GUIDE_COLOR[n]);
+    ctx.setFont('Jua, sans-serif', 11, 'normal');
+    ctx.fillText(`${n}현 ${GUIDE_NAME[n]}`, x1 + 4, y + 4);
+    ctx.restore();
+  });
+  voice.draw(ctx, stave);
+  const svg = container.querySelector('svg');
+  if (svg) {
+    const bb = svg.getBBox();
+    const top = Math.floor(bb.y - 4), realH = Math.ceil(bb.height + 8);
+    svg.setAttribute('height', realH);
+    svg.setAttribute('viewBox', `0 ${top} ${W} ${realH}`);
+    svg.style.cssText = `width:100%;max-width:${Math.round(W * 0.9)}px;height:auto;display:block;margin:0 auto;`;
+  }
+}
+
 function stBoardSvg(sid) {
   const st = ST_STATE[sid];
   const unit = 38, x0 = 58, y0 = 22, gap = 29;
@@ -3377,7 +3439,7 @@ function stBoardSvg(sid) {
   ST_ORDER.forEach((name, i) => {
     const y = y0 + i * gap;
     const openLabel = st.spots.find(p => p.s === name && p.f === 0).label;
-    const showOpen = st.mode !== 'challenge' || st.hint >= 1 || st.solved;
+    const showOpen = st.mode !== 'challenge' || st.guides || st.hint >= 1 || st.solved;
     g += `
       <text x="${x0 - 18}" y="${y + 4}" font-size="12" text-anchor="end" fill="#6A675F" font-family="'Jua', sans-serif">${name}현${showOpen ? ` <tspan fill="${st.accent}">${openLabel}</tspan>` : ''}</text>
       <line x1="${x0 - 5}" y1="${y}" x2="${W - 6}" y2="${y}" stroke="#C9A44A" stroke-width="1.8"/>`;
@@ -3391,7 +3453,7 @@ function stBoardSvg(sid) {
     const lit = st.lit && st.lit.includes(key);
     const wrong = st.wrong === key;
     const onPath = st.path && st.path.find(q => q.key === key);
-    const hintDo = isDo(p) && (st.mode === 'explore' || (st.mode === 'challenge' && st.hint >= 1 && !st.solved));
+    const hintDo = isDo(p) && st.anchor !== 'open' && (st.mode === 'explore' || (st.mode === 'challenge' && st.hint >= 1 && !st.solved));
     let col = ink;
     if (wrong) col = '#B0413E';
     else if (lit || (st.solved && isAns) || (st.hint >= 3 && isAns && !st.solved)) col = st.color;
@@ -3524,7 +3586,11 @@ function stRender(sid) {
       ${st.mode === 'reverse' && !st.solved ? names.map(nm => `<button class="btn btn-${st.cls}" style="font-size:15px;padding:6px 11px;font-family:'Jua',sans-serif;" onclick="stName('${sid}','${nm}')">${nm}</button>`).join('') : ''}
       ${hintBtn}
     </div>`;
-  if (st.mode !== 'reverse') renderSingleNote(`st-note-${sid}`, st.q.pos, st.key, st.wrong ? '#B0413E' : st.color, { width: 150, maxWidth: 150 });
+  if (st.anchor === 'open') {
+    const main = firstPosition(st.q.freq).s;
+    const show = st.guides ? ['G', 'D', 'A', 'E'] : (st.hint >= 1 || st.solved ? [main] : []);
+    renderGuideStaff(`st-note-${sid}`, st.q.pos, st.key, st.wrong ? '#B0413E' : st.color, show);
+  } else if (st.mode !== 'reverse') renderSingleNote(`st-note-${sid}`, st.q.pos, st.key, st.wrong ? '#B0413E' : st.color, { width: 150, maxWidth: 150 });
 }
 
 function stHint(sid) {
@@ -3532,6 +3598,20 @@ function stHint(sid) {
   if (!st || st.solved || st.hint >= 3) return;
   if (st.t0 == null) st.t0 = performance.now();
   st.hint++; st.hints++;
+  if (st.anchor === 'open') {
+    const fp = firstPosition(st.q.freq);
+    const open = st.spots.find(p => p.s === fp.s && p.f === 0);
+    if (st.hint === 1) st.msg = `음표 바로 아래 길잡이는 <b>${fp.s}현 ${open.label}</b>이에요. 거기서부터 줄·칸을 세어봐요!`;
+    if (st.hint === 2) {
+      st.path = st.spots.filter(p => p.s === fp.s && p.f <= fp.f).map(p => ({ key: `${p.s}${p.f}`, label: p.label }));
+      st.msg = fp.f === 0
+        ? `음표가 길잡이 <b>${open.label}</b>에 딱 있어요. 손가락을 누르지 않는 개방현이에요!`
+        : `${open.label}(개방현)부터 한 칸씩: <b>${st.path.map(p => p.label).join(' → ')}</b> — ${fp.f}칸 올라갔으니 ${fp.f}번!`;
+    }
+    if (st.hint === 3) st.msg = '깜빡이는 자리가 정답이에요. 눌러봐요!';
+    stRender(sid);
+    return;
+  }
   if (st.hint === 1) st.msg = '주황 점이 <b>도</b>예요. G현 3번이 낮은 도, A현 2번이 도예요. 도에서부터 세어봐요!';
   if (st.hint === 2) {
     st.path = stDoPath(st, st.q.midi);
@@ -3546,7 +3626,16 @@ function stSolve(sid, extraMsg) {
   st.solved = true; st.wrong = null;
   const pauseStart = performance.now();
   playFingerNote(st.q.freq);
+  let extra = extraMsg || '';
+  if (st.anchor === 'open') {
+    const fp = firstPosition(st.q.freq);
+    const mainKey = `${fp.s}${fp.f}`;
+    st.answers = [mainKey, ...st.answers.filter(k => k !== mainKey)];
+    const open = st.spots.find(p => p.s === fp.s && p.f === 0).label;
+    if (fp.f > 0) extra = ` (${open}에서 ${fp.f}칸 올라가서 ${fp.f}번!)` + extra;
+  }
   const where = st.answers.map(stWhere);
+  extraMsg = extra;
   st.msg = `<b style="color:${st.color};">정답! ${st.q.label}</b> — ${where[0]}${where.length > 1 ? `, <b>${where[1]}</b>으로 짚어도 정답이에요!` : ''}${extraMsg || ''}`;
   stRender(sid);
   setTimeout(() => {
@@ -3601,6 +3690,7 @@ function buildStringTap(s, meta, slideId) {
   el.className = 'slide';
   ST_STATE[slideId] = {
     mode: s.mode || 'practice', key: s.key || 'G', spots: stSpots(s.key || 'G'),
+    anchor: s.anchor || 'do', guides: !!s.guides,
     levels: s.levels || [], count: s.count || 10, intro: s.intro,
     level: null, lit: null, color: colorOf(c, meta), accent: '#C26A12', cls: clsOf(c)
   };

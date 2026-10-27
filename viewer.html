@@ -3533,6 +3533,7 @@ function stClearBest(sid, really) {
 
 function stRender(sid) {
   const st = ST_STATE[sid];
+  if (st && st.scoreTap) { scRender(sid); return; }
   const box = document.getElementById(`st-game-${sid}`);
   if (!st || !box) return;
   if (st.mode === 'explore') {
@@ -3655,6 +3656,7 @@ function stSolve(sid, extraMsg) {
 function stTap(sid, key) {
   const st = ST_STATE[sid];
   if (!st) return;
+  if (st.scoreTap) { scTap(sid, key); return; }
   if (st.mode === 'explore') {
     const p = st.spots.find(x => `${x.s}${x.f}` === key);
     playFingerNote(p.freq);
@@ -3913,6 +3915,212 @@ function buildRhythmGuess(s, meta, slideId) {
     <div class="ornament-card ${clsOf(c)}" style="max-width:600px;" id="rg-game-${slideId}"></div>
   `;
   queueVexRender(() => rgRender(slideId));
+  return el;
+}
+
+/* ── SCORE TAP ── play through a real piece one note at a time by tapping
+   where each note is pressed. Reuses the string-tap board, hints (open
+   string anchored) and answer rules; the staff shows a 2-measure window of
+   the line with the current note coloured and finished notes greyed. A
+   line ends by playing the whole passage back. Per-note tips (e.g. what
+   the printed fingering says) come from line.tips {noteIndex: text}. */
+function renderScoreWindow(id, measures, key, time, cur, strong, guides) {
+  const container = document.getElementById(id);
+  if (!container) return;
+  container.innerHTML = '';
+  const { Renderer, Stave, StaveNote, Voice, Formatter, Accidental, Dot, Tuplet } = Vex.Flow;
+  const perNote = 56, DUR_W = { '8': 0.72, '8t': 0.66, q: 1, h: 1.2, hd: 1.35 };
+  const head = 66 + Object.keys(WT_KEY_ACC[key] || {}).length * 11 + (time ? 24 : 0);
+  const widths = measures.map((m, i) => (i === 0 ? head : 14)
+    + m.reduce((w, spec) => w + perNote * (DUR_W[spec.split(':')[2] || 'q'] || 1), 0) + 8);
+  const W = widths.reduce((a, b) => a + b, 0) + 70, H = 150;
+  const renderer = new Renderer(container, Renderer.Backends.SVG);
+  renderer.resize(W, H);
+  const ctx = renderer.getContext();
+  const ink = '#3A3833', done = '#B8B5AE';
+  let x = 5, idx = 0;
+  const staves = measures.map((m, mi) => {
+    const st = new Stave(x, 30, widths[mi]);
+    if (mi === 0) { st.addClef('treble'); if (key !== 'C') st.addKeySignature(key); if (time) st.addTimeSignature(time); }
+    x += widths[mi];
+    return st;
+  });
+  // open-string rails behind everything
+  (guides || []).forEach(n => {
+    const g = new StaveNote({ keys: [GUIDE_POS[n]], duration: 'w' });
+    g.setStave(staves[0]);
+    const y = g.getYs()[0];
+    const x0 = staves[0].getNoteStartX() - 4, x1 = x;
+    ctx.save();
+    ctx.setFillStyle(GUIDE_COLOR[n] + '33'); ctx.fillRect(x0, y - 4, x1 - x0, 8);
+    ctx.setFillStyle(GUIDE_COLOR[n]); ctx.setFont('Jua, sans-serif', 11, 'normal');
+    ctx.fillText(`${n}현 ${GUIDE_NAME[n]}`, x1 + 4, y + 4);
+    ctx.restore();
+  });
+  staves.forEach((stave, mi) => {
+    ctx.setFillStyle(ink); ctx.setStrokeStyle(ink);
+    stave.setContext(ctx).draw();
+    const durs = measures[mi].map(spec => spec.split(':')[2] || 'q');
+    const notes = measures[mi].map((spec, ni) => {
+      const [p, acc, dur] = spec.split(':');
+      const vn = new StaveNote({ keys: [p], duration: dur === '8t' ? '8' : (dur || 'q'), auto_stem: true });
+      if (dur === 'hd') Dot.buildAndAttach([vn], { all: true });
+      const col = idx < cur ? done : idx === cur ? strong : ink;
+      if (acc) { const a = new Accidental(acc); a.setStyle({ fillStyle: col, strokeStyle: col }); vn.addModifier(a, 0); }
+      vn.setStyle({ fillStyle: col, strokeStyle: col });
+      idx++;
+      return vn;
+    });
+    const tuplets = [];
+    for (let i = 0; i + 2 < notes.length; i++) {
+      if (durs[i] === '8t' && durs[i + 1] === '8t' && durs[i + 2] === '8t') {
+        tuplets.push(new Tuplet(notes.slice(i, i + 3), { num_notes: 3, notes_occupied: 2, location: Tuplet.LOCATION_BOTTOM, bracketed: false }));
+        i += 2;
+      }
+    }
+    const voice = new Voice({ num_beats: 3, beat_value: 4 }).setStrict(false).addTickables(notes);
+    const beams = beamRuns(notes, durs);
+    new Formatter().joinVoices([voice]).formatToStave([voice], stave);
+    voice.draw(ctx, stave);
+    beams.forEach(b => { b.setStyle({ fillStyle: ink, strokeStyle: ink }); b.setContext(ctx).draw(); });
+    tuplets.forEach(t => t.setContext(ctx).draw());
+  });
+  const svg = container.querySelector('svg');
+  if (svg) {
+    const bb = svg.getBBox();
+    const top = Math.floor(bb.y - 4), realH = Math.ceil(bb.height + 8);
+    svg.setAttribute('height', realH);
+    svg.setAttribute('viewBox', `0 ${top} ${W} ${realH}`);
+    svg.style.cssText = `width:100%;max-width:${Math.round(W * 0.88)}px;height:auto;display:block;margin:0 auto;`;
+  }
+}
+
+function scSetQ(sid) {
+  const st = ST_STATE[sid];
+  const n = st.lineNotes[st.idx];
+  const midi = Math.round(69 + 12 * Math.log2(n.freq / 440));
+  Object.assign(st, {
+    q: { pos: n.pos, label: n.label, freq: n.freq, midi },
+    answers: st.spots.filter(p => p.midi === midi).map(p => `${p.s}${p.f}`),
+    hint: 0, path: null, wrong: null, solved: false, msg: ''
+  });
+}
+
+function scStart(sid, li) {
+  const st = ST_STATE[sid];
+  const line = st.lines[li];
+  st.level = li;
+  st.lineNotes = wtAnalyze(line.measures, st.key);
+  // which measure each note is in, for the 2-measure window
+  st.noteMeasure = [];
+  line.measures.forEach((m, mi) => m.forEach(() => st.noteMeasure.push(mi)));
+  Object.assign(st, { idx: 0, mistakes: 0, hints: 0, t0: null, paused: 0, done: false });
+  scSetQ(sid);
+  scRender(sid);
+}
+
+function scRender(sid) {
+  const st = ST_STATE[sid];
+  const box = document.getElementById(`st-game-${sid}`);
+  if (!st || !box) return;
+  if (st.level == null) {
+    box.innerHTML = `
+      <div class="ornament-korean" style="margin-bottom:10px;">${st.intro || ''}</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;">
+        ${st.lines.map((ln, li) => `<button class="btn btn-${st.cls}" style="font-size:14px;padding:8px 16px;font-family:'Jua',sans-serif;" onclick="scStart('${sid}',${li})">${ln.label}</button>`).join('')}
+      </div>`;
+    return;
+  }
+  const line = st.lines[st.level];
+  if (st.done) {
+    box.innerHTML = `
+      <div style="text-align:center;font-family:'Jua',sans-serif;">
+        <div style="font-size:20px;margin:8px 0 4px;">한 줄 완성! ${line.label}</div>
+        <div style="font-size:15px;"><b style="color:${st.color};">${st.elapsed.toFixed(1)}초</b> · 틀린 횟수 ${st.mistakes} · 힌트 ${st.hints}번</div>
+        <div style="font-size:13px;color:var(--text-mid);margin-top:4px;">지금 짚은 가락을 이어서 들려줄게요!</div>
+      </div>
+      <div id="st-note-${sid}" style="margin-top:6px;"></div>
+      <div style="display:flex;justify-content:center;flex-wrap:wrap;gap:8px;margin-top:10px;">
+        <button class="btn" style="font-size:13px;padding:7px 14px;" onclick="playMelody(ST_STATE['${sid}'].lines[ST_STATE['${sid}'].level].measures, ST_STATE['${sid}'].key, 120, this)">▶ 다시 듣기</button>
+        <button class="btn btn-${st.cls}" style="font-size:13px;padding:7px 14px;" onclick="scStart('${sid}',${st.level})">한 번 더!</button>
+        ${st.level < st.lines.length - 1 ? `<button class="btn btn-${st.cls}" style="font-size:13px;padding:7px 14px;" onclick="scStart('${sid}',${st.level + 1})">다음 줄 ▶</button>` : ''}
+        <button class="btn" style="font-size:13px;padding:7px 14px;" onclick="ST_STATE['${sid}'].level=null;scRender('${sid}')">줄 고르기</button>
+      </div>`;
+    renderScoreWindow(`st-note-${sid}`, line.measures.slice(0, 2), st.key, st.time, 999, st.color, []);
+    return;
+  }
+  const mi = st.noteMeasure[st.idx];
+  const w0 = Math.floor(mi / 2) * 2;
+  const before = st.noteMeasure.filter(m => m < w0).length;
+  const hintBtn = !st.solved && st.hint < 3
+    ? `<button class="btn" style="font-size:12px;padding:5px 12px;" onclick="stHint('${sid}')">힌트 ${st.hint + 1}</button>` : '';
+  box.innerHTML = `
+    <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text-mid);">
+      <span>${line.label} · ${line.start + w0}~${line.start + Math.min(w0 + 1, line.measures.length - 1)}마디 · ${st.idx + 1} / ${st.lineNotes.length}</span>
+      <span>틀린 횟수 ${st.mistakes} · 힌트 ${st.hints}</span>
+    </div>
+    <div id="st-note-${sid}"></div>
+    ${stBoardSvg(sid)}
+    <div class="ornament-korean" style="text-align:center;min-height:22px;margin-top:3px;font-size:13px;">${st.msg || '색칠된 음을 짚는 자리를 눌러요'}</div>
+    <div style="display:flex;justify-content:center;flex-wrap:wrap;gap:6px;margin-top:4px;">
+      <button class="btn" style="font-size:12px;padding:5px 12px;" onclick="ST_STATE['${sid}'].guides=!ST_STATE['${sid}'].guides;scRender('${sid}')">길잡이 띠 ${st.guides ? '끄기' : '켜기'}</button>
+      ${hintBtn}
+    </div>`;
+  const main = firstPosition(st.q.freq).s;
+  const guides = st.guides ? ['G', 'D', 'A', 'E'] : (st.hint >= 1 || st.solved ? [main] : []);
+  renderScoreWindow(`st-note-${sid}`, line.measures.slice(w0, w0 + 2), st.key, w0 === 0 ? st.time : null,
+    st.idx - before, st.wrong ? '#B0413E' : st.color, guides);
+}
+
+function scTap(sid, key) {
+  const st = ST_STATE[sid];
+  if (st.solved || st.done || st.level == null) return;
+  if (st.t0 == null) st.t0 = performance.now();
+  if (!st.answers.includes(key)) {
+    st.mistakes++;
+    st.wrong = key;
+    const p = st.spots.find(x => `${x.s}${x.f}` === key);
+    st.msg = `그 자리는 <b>${p.label}</b>이에요. 다시 찾아봐요!${st.hint < 3 ? ' 힌트를 써도 돼요.' : ''}`;
+    scRender(sid);
+    return;
+  }
+  st.solved = true; st.wrong = null;
+  const pauseStart = performance.now();
+  playFingerNote(st.q.freq);
+  const fp = firstPosition(st.q.freq);
+  const mainKey = `${fp.s}${fp.f}`;
+  const others = st.answers.filter(k => k !== mainKey);
+  const tip = (st.lines[st.level].tips || {})[st.idx];
+  st.msg = `<b style="color:${st.color};">${st.q.label}</b> — ${stWhere(key)}${others.length && key === mainKey ? ` (${others.map(stWhere).join(', ')}도 정답)` : ''}${key !== mainKey ? ` (${stWhere(mainKey)}도 정답)` : ''}${tip ? `<br>${tip}` : ''}`;
+  scRender(sid);
+  setTimeout(() => {
+    st.paused += performance.now() - pauseStart;
+    st.idx++;
+    if (st.idx >= st.lineNotes.length) {
+      st.done = true;
+      st.elapsed = (performance.now() - st.t0 - st.paused) / 1000;  // not st.time: that's the time signature
+      scRender(sid);
+      setTimeout(() => playMelody(st.lines[st.level].measures, st.key, 120), 400);
+    } else { scSetQ(sid); scRender(sid); }
+  }, tip ? 2200 : 900);
+}
+
+function buildScoreTap(s, meta, slideId) {
+  const c = s.color || 'a';
+  const el = document.createElement('div');
+  el.className = 'slide';
+  ST_STATE[slideId] = {
+    scoreTap: true, mode: 'challenge', anchor: 'open', guides: !!s.guides,
+    key: s.key || 'G', time: s.time || null, spots: stSpots(s.key || 'G'),
+    lines: s.lines || [], intro: s.intro, level: null, lit: null,
+    color: colorOf(c, meta), accent: '#C26A12', cls: clsOf(c)
+  };
+  el.innerHTML = `
+    <h1 class="slide-title" style="font-size:clamp(16px,2.4vw,22px);">${s.title}</h1>
+    ${s.subtitle ? `<p class="slide-subtitle">${s.subtitle}</p>` : ''}
+    <div class="ornament-card ${clsOf(c)}" style="max-width:620px;" id="st-game-${slideId}"></div>
+  `;
+  queueVexRender(() => scRender(slideId));
   return el;
 }
 
@@ -6705,6 +6913,7 @@ function loadLesson(data) {
     else if (s.type === 'string_tap') el = buildStringTap(s, meta, sid);
     else if (s.type === 'rhythm_ruler') el = buildRhythmRuler(s, meta, sid);
     else if (s.type === 'rhythm_guess') el = buildRhythmGuess(s, meta, sid);
+    else if (s.type === 'score_tap') el = buildScoreTap(s, meta, sid);
     else if (s.type === 'video_feature')   el = buildVideoFeature(s, meta, sid);
     else return;
     el.id = sid;

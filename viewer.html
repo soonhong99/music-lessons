@@ -1005,6 +1005,8 @@ svg.wedge { display: block; }
   display: flex; align-items: center; justify-content: center;
 }
 .staff-ornament svg { max-width: 100% !important; height: auto !important; }
+.ghost-blink { animation: ghostBlink 0.9s ease-in-out infinite; }
+@keyframes ghostBlink { 0%,100% { opacity: 1; } 50% { opacity: 0.2; } }
 .ornament-detail { flex: 1; display: flex; flex-direction: column; gap: 4px; min-width: 200px; }
 .ornament-name-big { font-family: 'Jua', sans-serif; font-size: 22px; line-height: 1; }
 .ornament-card.ca .ornament-name-big { color: var(--ca-dark); }
@@ -3432,11 +3434,13 @@ function renderGuideStaff(id, pos, key, color, show) {
 function stBoardSvg(sid) {
   const st = ST_STATE[sid];
   const unit = 38, x0 = 58, y0 = 22, gap = 29;
-  const W = x0 + 7 * unit + 26, H = y0 + 3 * gap + 22;
+  // a lesson can limit the board to some strings (e.g. only A·D)
+  const rows = ST_ORDER.filter(n => !st.strings || st.strings.includes(n));
+  const W = x0 + 7 * unit + 26, H = y0 + (rows.length - 1) * gap + 22;
   const ink = '#3A3833', dim = '#B8B5AE';
   const info = st.q;
-  let g = `<rect x="${x0 - 11}" y="${y0 - 9}" width="6" height="${3 * gap + 18}" rx="1.5" fill="#5A4A3A"/>`;
-  ST_ORDER.forEach((name, i) => {
+  let g = `<rect x="${x0 - 11}" y="${y0 - 9}" width="6" height="${(rows.length - 1) * gap + 18}" rx="1.5" fill="#5A4A3A"/>`;
+  rows.forEach((name, i) => {
     const y = y0 + i * gap;
     const openLabel = st.spots.find(p => p.s === name && p.f === 0).label;
     const showOpen = st.mode !== 'challenge' || st.guides || st.hint >= 1 || st.solved;
@@ -3446,8 +3450,9 @@ function stBoardSvg(sid) {
   });
   const isDo = p => p.label === '도';
   st.spots.forEach(p => {
+    if (!rows.includes(p.s)) return;
     const x = p.f === 0 ? x0 + 2 : x0 + p.semi * unit;
-    const y = y0 + ST_ORDER.indexOf(p.s) * gap;
+    const y = y0 + rows.indexOf(p.s) * gap;
     const key = `${p.s}${p.f}`;
     const isAns = st.answers && st.answers.includes(key);
     const lit = st.lit && st.lit.includes(key);
@@ -3510,7 +3515,8 @@ function stNewQuestion(sid) {
   const n = wtAnalyze([[pos]], st.key)[0];
   const midi = Math.round(69 + 12 * Math.log2(n.freq / 440));
   const answers = st.spots.filter(p => p.midi === midi).map(p => `${p.s}${p.f}`);
-  Object.assign(st, { q: { pos, label: n.label, freq: n.freq, midi }, answers, hint: 0, path: null, wrong: null, solved: false, msg: '' });
+  Object.assign(st, { q: { pos, label: n.label, freq: n.freq, midi }, answers, hint: 0, path: null, wrong: null, solved: false, msg: '',
+    qMiss: false, recall: false, recallShow: false, recallWrong: false });
   // reverse mode lights one of the possible spots
   st.lit = st.mode === 'reverse' ? [answers[Math.floor(Math.random() * answers.length)]] : null;
 }
@@ -3534,6 +3540,7 @@ function stClearBest(sid, really) {
 function stRender(sid) {
   const st = ST_STATE[sid];
   if (st && st.scoreTap) { scRender(sid); return; }
+  if (st && st.fade) { gfRender(sid); return; }
   const box = document.getElementById(`st-game-${sid}`);
   if (!st || !box) return;
   if (st.mode === 'explore') {
@@ -3596,6 +3603,7 @@ function stRender(sid) {
 
 function stHint(sid) {
   const st = ST_STATE[sid];
+  if (st && st.fade) { gfHint(sid); return; }
   if (!st || st.solved || st.hint >= 3) return;
   if (st.t0 == null) st.t0 = performance.now();
   st.hint++; st.hints++;
@@ -3657,6 +3665,7 @@ function stTap(sid, key) {
   const st = ST_STATE[sid];
   if (!st) return;
   if (st.scoreTap) { scTap(sid, key); return; }
+  if (st.fade) { gfTap(sid, key); return; }
   if (st.mode === 'explore') {
     const p = st.spots.find(x => `${x.s}${x.f}` === key);
     playFingerNote(p.freq);
@@ -4121,6 +4130,326 @@ function buildScoreTap(s, meta, slideId) {
     <div class="ornament-card ${clsOf(c)}" style="max-width:620px;" id="st-game-${slideId}"></div>
   `;
   queueVexRender(() => scRender(slideId));
+  return el;
+}
+
+/* ── TAP STAFF ── a staff the child can tap: the tap snaps to the nearest
+   line/space (forgiving on small screens) and is reported as a note
+   position. Also draws a target note and "ghost" open-string notes whose
+   opacity is set per note (the fading guides). */
+const TAP_CFG = {};
+const STEP_LETTERS = 'cdefgab';
+const GUIDE_PLACE = { 'g/3': '덧줄 2개 아래', 'd/4': '오선 아래 칸', 'a/4': '둘째 칸', 'e/5': '넷째 칸' };
+function stepToPos(step) {  // step 0 = e/4, the bottom line
+  const i = 2 + step;
+  return `${STEP_LETTERS[((i % 7) + 7) % 7]}/${4 + Math.floor(i / 7)}`;
+}
+function posToStep(pos) {
+  const [l, o] = pos.split(':')[0].split('/');
+  return (parseInt(o, 10) - 4) * 7 + STEP_LETTERS.indexOf(l) - 2;
+}
+function renderTapStaff(id, o) {
+  const container = document.getElementById(id);
+  if (!container) return;
+  container.innerHTML = '';
+  const { Renderer, Stave, StaveNote, Voice, Formatter, Accidental } = Vex.Flow;
+  const W = 236, H = 170;
+  const renderer = new Renderer(container, Renderer.Backends.SVG);
+  renderer.resize(W, H);
+  const ctx = renderer.getContext();
+  const stave = new Stave(4, 40, W - 12);
+  stave.addClef('treble');
+  if (o.key && o.key !== 'C') stave.addKeySignature(o.key);
+  ctx.setFillStyle('#3A3833'); ctx.setStrokeStyle('#3A3833');
+  stave.setContext(ctx).draw();
+  const ticks = [], meta = [];
+  (o.ghosts || []).filter(g => g.opacity > 0).forEach(g => {
+    const n = new StaveNote({ keys: [g.pos], duration: 'w' });
+    n.setStyle({ fillStyle: g.color, strokeStyle: g.color });
+    ticks.push(n); meta.push({ n, ghost: g });
+  });
+  if (o.target) {
+    const [p, acc] = o.target.split(':');
+    const n = new StaveNote({ keys: [p], duration: 'w' });
+    if (acc) n.addModifier(new Accidental(acc), 0);
+    n.setStyle({ fillStyle: o.targetColor, strokeStyle: o.targetColor });
+    ticks.push(n); meta.push({ n });
+  }
+  if (o.marker) {
+    const n = new StaveNote({ keys: [o.marker.pos], duration: 'w' });
+    n.setStyle({ fillStyle: o.marker.color, strokeStyle: o.marker.color });
+    ticks.push(n); meta.push({ n });
+  }
+  if (ticks.length) {
+    const voice = new Voice({ num_beats: 4 * ticks.length, beat_value: 4 }).setStrict(false).addTickables(ticks);
+    new Formatter().joinVoices([voice]).formatToStave([voice], stave);
+    voice.draw(ctx, stave);
+  }
+  meta.forEach(({ n, ghost }) => {
+    if (!ghost) return;
+    const el = n.getSVGElement && n.getSVGElement();
+    if (el) {
+      el.style.opacity = ghost.opacity;
+      if (ghost.blink) el.classList.add('ghost-blink');
+    }
+    const y = n.getYs()[0], x = n.getAbsoluteX();
+    ctx.save(); ctx.setFont('Jua, sans-serif', 11, 'normal'); ctx.setFillStyle(ghost.color);
+    ctx.fillText(ghost.label, x - 4, y - 9);
+    ctx.restore();
+    // fade the label with its note
+    const texts = container.querySelectorAll('svg text');
+    const t = texts[texts.length - 1];
+    if (t) t.style.opacity = ghost.opacity;
+  });
+  const svg = container.querySelector('svg');
+  if (!svg) return;
+  if (o.onTap) {
+    const r = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    const top = stave.getYForLine(0) - 30, bot = stave.getYForLine(4) + 34;
+    r.setAttribute('x', stave.getNoteStartX() - 10); r.setAttribute('y', top);
+    r.setAttribute('width', W - stave.getNoteStartX() + 6); r.setAttribute('height', bot - top);
+    r.setAttribute('fill', 'transparent'); r.style.cursor = 'pointer';
+    r.setAttribute('onclick', `tapStaffEvent(event,'${id}')`);
+    svg.appendChild(r);
+    TAP_CFG[id] = { bottomY: stave.getYForLine(4), onTap: o.onTap, sid: o.sid };
+  }
+  const bb = svg.getBBox();
+  const top = Math.floor(bb.y - 4), realH = Math.ceil(bb.height + 8);
+  svg.setAttribute('height', realH);
+  svg.setAttribute('viewBox', `0 ${top} ${W} ${realH}`);
+  svg.style.cssText = `width:100%;max-width:${o.maxWidth || 300}px;height:auto;display:block;margin:0 auto;`;
+}
+function tapStaffEvent(e, id) {
+  const cfg = TAP_CFG[id];
+  const svg = document.querySelector(`#${id} svg`);
+  if (!cfg || !svg) return;
+  const pt = svg.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY;
+  const p = pt.matrixTransform(svg.getScreenCTM().inverse());
+  const step = Math.max(-6, Math.min(9, Math.round((cfg.bottomY - p.y) / 5)));
+  window[cfg.onTap](cfg.sid, stepToPos(step));
+}
+
+/* guide_find: warm-up — "라를 찾아 눌러요" on an empty staff. A wrong tap
+   shows where it really is (blinking) and waits for a correct tap. */
+const GF_STATE = {};
+function gfOpenName(pos) { const s = Object.keys(GUIDE_POS).find(k => GUIDE_POS[k] === pos); return { s, name: GUIDE_NAME[s] }; }
+function gfFindNew(sid) {
+  const st = GF_STATE[sid];
+  let t;
+  do { t = st.pool[Math.floor(Math.random() * st.pool.length)]; } while (st.pool.length > 1 && t === st.target);
+  Object.assign(st, { target: t, marker: null, ok: false, showCorrect: false, msg: '' });
+}
+function gfFindRender(sid) {
+  const st = GF_STATE[sid];
+  const box = document.getElementById(`gf-find-${sid}`);
+  if (!st || !box) return;
+  if (st.done) {
+    box.innerHTML = `<div style="text-align:center;font-family:'Jua',sans-serif;font-size:18px;margin:14px 0 8px;">다 찾았어요! 틀린 횟수 ${st.mistakes}번</div>
+      <div style="text-align:center;"><button class="btn btn-${st.cls}" style="font-size:13px;padding:7px 16px;" onclick="gfFindStart('${sid}')">한 번 더!</button></div>`;
+    return;
+  }
+  const { s, name } = gfOpenName(st.target);
+  box.innerHTML = `
+    <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text-mid);"><span>${st.n + 1} / ${st.count}</span><span>틀린 횟수 ${st.mistakes}</span></div>
+    <div class="ornament-korean" style="text-align:center;font-size:15px;margin:4px 0;">${st.msg || `<b style="color:${GUIDE_COLOR[s]};">${name}</b>(${s}현 개방현)를 오선에서 찾아 눌러요`}</div>
+    <div id="gf-staff-${sid}"></div>
+    ${st.tip ? `<div style="font-size:12px;color:var(--text-mid);text-align:center;margin-top:4px;">${st.tip}</div>` : ''}`;
+  const ghosts = st.showCorrect || st.ok ? [{ pos: st.target, opacity: 1, color: GUIDE_COLOR[s], label: name, blink: !st.ok }] : [];
+  renderTapStaff(`gf-staff-${sid}`, {
+    key: st.key, ghosts, marker: st.marker && !st.ok ? { pos: st.marker, color: '#B0413E' } : null,
+    onTap: st.ok ? null : 'gfFindTap', sid, maxWidth: 330
+  });
+}
+function gfFindTap(sid, pos) {
+  const st = GF_STATE[sid];
+  if (!st || st.ok) return;
+  const { s, name } = gfOpenName(st.target);
+  if (posToStep(pos) === posToStep(st.target)) {
+    st.ok = true;
+    playFingerNote(wtAnalyze([[st.target]], 'C')[0].freq);
+    st.msg = `<b style="color:${st.color};">맞아요!</b> ${name}는 <b>${GUIDE_PLACE[st.target]}</b>`;
+    gfFindRender(sid);
+    setTimeout(() => { st.n++; if (st.n >= st.count) st.done = true; else gfFindNew(sid); gfFindRender(sid); }, 1000);
+  } else {
+    st.mistakes++;
+    st.marker = pos; st.showCorrect = true;
+    st.msg = `아쉬워요! ${name}는 <b>${GUIDE_PLACE[st.target]}</b>이에요. 반짝이는 곳을 눌러봐요`;
+    gfFindRender(sid);
+  }
+}
+function gfFindStart(sid) {
+  const st = GF_STATE[sid];
+  Object.assign(st, { n: 0, mistakes: 0, done: false, target: null });
+  gfFindNew(sid);
+  gfFindRender(sid);
+}
+function buildGuideFind(s, meta, slideId) {
+  const c = s.color || 'a';
+  const el = document.createElement('div');
+  el.className = 'slide';
+  GF_STATE[slideId] = { pool: s.pool || ['a/4', 'd/4'], count: s.count || 6, key: s.key || 'G', tip: s.tip, color: colorOf(c, meta), cls: clsOf(c) };
+  el.innerHTML = `
+    <h1 class="slide-title" style="font-size:clamp(16px,2.4vw,22px);">${s.title}</h1>
+    ${s.subtitle ? `<p class="slide-subtitle">${s.subtitle}</p>` : ''}
+    <div class="ornament-card ${clsOf(c)}" style="max-width:560px;" id="gf-find-${slideId}"></div>
+  `;
+  queueVexRender(() => gfFindStart(slideId));
+  return el;
+}
+
+/* guide_fade: the string-tap game with ghost open-string notes on the staff
+   that fade as the child gets answers right in a row (no hint, no miss):
+   streak 0–2 strong, 3–5 faint, 6+ gone; any miss or hint brings them
+   back. Hint 1 asks the child to find the open string on the staff first. */
+function gfOpacity(st) { return st.recallShow ? 1 : st.streak <= 2 ? 1 : st.streak <= 5 ? 0.28 : 0; }
+function gfUnlockKey(sid) { return `gf-unlock-${(document.title || '').slice(0, 30)}-${sid}`; }
+function gfUnlocked(sid) { try { return parseInt(localStorage.getItem(gfUnlockKey(sid)) || '0', 10); } catch (e) { return 0; } }
+function gfSetUnlocked(sid, n) { try { localStorage.setItem(gfUnlockKey(sid), String(n)); } catch (e) {} }
+
+function gfStart(sid, li) {
+  const st = ST_STATE[sid];
+  const lv = st.levels[li];
+  Object.assign(st, { level: li, strings: lv.strings, guideStrings: lv.guides, n: 0, mistakes: 0, hints: 0, t0: null, paused: 0,
+    done: false, streak: 0, lastPos: null, unlockChecked: false, passed: false });
+  stNewQuestion(sid);
+  gfRender(sid);
+}
+
+function gfRender(sid) {
+  const st = ST_STATE[sid];
+  const box = document.getElementById(`st-game-${sid}`);
+  if (!st || !box) return;
+  const unlocked = gfUnlocked(sid);
+  if (st.level == null) {
+    box.innerHTML = `
+      <div class="ornament-korean" style="margin-bottom:10px;">${st.intro || ''}</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;">
+        ${st.levels.map((lv, li) => {
+          const open = li <= unlocked;
+          return `<button class="btn btn-${st.cls}" ${open ? '' : 'disabled'} style="font-size:14px;padding:8px 16px;font-family:'Jua',sans-serif;${open ? '' : 'opacity:.45;'}" onclick="gfStart('${sid}',${li})">${lv.label}${open ? '' : ' (잠김)'}</button>`;
+        }).join('')}
+      </div>
+      <div style="text-align:center;font-size:12px;color:var(--text-mid);margin-top:10px;">한 단계에서 틀리거나 힌트를 쓴 게 2번 이하면 통과! 다음 단계가 열려요.</div>
+      ${unlocked < st.levels.length - 1 ? `<div style="text-align:center;margin-top:8px;"><button class="btn" style="font-size:11px;padding:3px 10px;opacity:.7;" onclick="gfSetUnlocked('${sid}',${st.levels.length - 1});gfRender('${sid}')">선생님용: 모든 단계 열기</button></div>` : ''}`;
+    return;
+  }
+  const lv = st.levels[st.level];
+  if (st.done) {
+    if (!st.unlockChecked) {
+      st.unlockChecked = true;
+      st.passed = st.mistakes + st.hints <= 2;
+      if (st.passed && st.level + 1 > unlocked) gfSetUnlocked(sid, st.level + 1);
+    }
+    const hasNext = st.level < st.levels.length - 1;
+    box.innerHTML = `
+      <div style="text-align:center;font-family:'Jua',sans-serif;">
+        <div style="font-size:20px;margin:10px 0 4px;">${st.passed ? '통과!' : '다 풀었어요!'} ${lv.label}</div>
+        <div style="font-size:15px;"><b style="color:${st.color};">${st.time.toFixed(1)}초</b> · 틀린 횟수 ${st.mistakes} · 힌트 ${st.hints}번</div>
+        <div style="font-size:13.5px;margin-top:6px;color:${st.passed ? st.color : 'var(--text-mid)'};">
+          ${st.passed ? (hasNext ? '다음 단계가 열렸어요!' : '모든 단계를 통과했어요!') : '틀리거나 힌트 쓴 게 2번 이하면 통과예요. 한 번 더 해볼까요?'}</div>
+      </div>
+      <div style="display:flex;justify-content:center;flex-wrap:wrap;gap:8px;margin-top:14px;">
+        <button class="btn btn-${st.cls}" style="font-size:13px;padding:7px 16px;" onclick="gfStart('${sid}',${st.level})">한 번 더!</button>
+        ${hasNext && gfUnlocked(sid) > st.level ? `<button class="btn btn-${st.cls}" style="font-size:13px;padding:7px 16px;" onclick="gfStart('${sid}',${st.level + 1})">다음 단계 ▶</button>` : ''}
+        <button class="btn" style="font-size:13px;padding:7px 16px;" onclick="ST_STATE['${sid}'].level=null;gfRender('${sid}')">단계 고르기</button>
+      </div>`;
+    return;
+  }
+  const op = gfOpacity(st);
+  const meterTxt = st.recallShow ? '길잡이 다시 보는 중' : st.streak <= 2 ? '길잡이 진하게' : st.streak <= 5 ? '길잡이 흐리게' : '길잡이 없이 도전 중!';
+  const meter = Array.from({ length: 6 }, (_, i) => `<span style="display:inline-block;width:9px;height:9px;border-radius:50%;margin-left:2px;background:${i < st.streak ? st.color : '#D8D5CE'};"></span>`).join('');
+  const hintBtn = !st.solved && st.hint < 3 && !st.recall
+    ? `<button class="btn" style="font-size:12px;padding:5px 12px;" onclick="stHint('${sid}')">힌트 ${st.hint + 1}</button>` : '';
+  const main = firstPosition(st.q.freq).s;
+  box.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--text-mid);">
+      <span>${lv.label} · ${st.n + 1} / ${st.count} · 틀린 ${st.mistakes} · 힌트 ${st.hints}</span>
+      <span>${meterTxt} ${meter}</span>
+    </div>
+    <div id="st-note-${sid}"></div>
+    ${stBoardSvg(sid)}
+    <div class="ornament-korean" style="text-align:center;min-height:22px;margin-top:3px;font-size:13px;">${st.msg || '이 음을 짚는 자리를 눌러요'}</div>
+    <div style="display:flex;justify-content:center;gap:6px;margin-top:4px;">${hintBtn}</div>`;
+  const ghosts = st.recall ? [] : st.guideStrings.map(s => ({
+    pos: GUIDE_POS[s], color: GUIDE_COLOR[s], label: GUIDE_NAME[s],
+    opacity: st.recallShow && s !== main ? 0 : op, blink: st.recallWrong && s === main
+  }));
+  renderTapStaff(`st-note-${sid}`, {
+    // question note in plain black like a real score, so it never looks like a coloured guide
+    key: st.key, target: st.recall ? null : st.q.pos, targetColor: st.wrong ? '#B0413E' : '#1F1E1B',
+    ghosts, marker: null, onTap: st.recall ? 'gfRecallTap' : null, sid, maxWidth: 290
+  });
+}
+
+function gfHint(sid) {
+  const st = ST_STATE[sid];
+  if (!st || st.solved || st.hint >= 3) return;
+  if (st.t0 == null) st.t0 = performance.now();
+  st.hint++; st.hints++; st.streak = 0;
+  const fp = firstPosition(st.q.freq);
+  const name = GUIDE_NAME[fp.s];
+  if (st.hint === 1) {
+    st.recall = true;
+    st.msg = `먼저 길잡이를 찾아요! <b style="color:${GUIDE_COLOR[fp.s]};">${fp.s}현 ${name}</b>는 오선 어디 있을까요? 눌러봐요`;
+  } else if (st.hint === 2) {
+    st.recall = false; st.recallShow = true;
+    st.path = st.spots.filter(p => p.s === fp.s && p.f <= fp.f).map(p => ({ key: `${p.s}${p.f}`, label: p.label }));
+    st.msg = fp.f === 0 ? `음표가 길잡이 <b>${name}</b>에 딱 있어요. 개방현이에요!`
+      : `${name}(개방현)부터 한 칸씩: <b>${st.path.map(p => p.label).join(' → ')}</b> — ${fp.f}칸 올라갔으니 ${fp.f}번!`;
+  } else {
+    st.msg = '깜빡이는 자리가 정답이에요. 눌러봐요!';
+  }
+  gfRender(sid);
+}
+
+function gfRecallTap(sid, pos) {
+  const st = ST_STATE[sid];
+  if (!st || !st.recall) return;
+  const fp = firstPosition(st.q.freq);
+  const name = GUIDE_NAME[fp.s], place = GUIDE_PLACE[GUIDE_POS[fp.s]];
+  st.recall = false; st.recallShow = true;
+  if (posToStep(pos) === posToStep(GUIDE_POS[fp.s])) {
+    st.recallWrong = false;
+    st.msg = `<b style="color:${st.color};">맞아요!</b> ${name}는 ${place}. 이제 ${name}에서 줄·칸을 세어봐요!`;
+  } else {
+    st.recallWrong = true;
+    st.msg = `${name}는 <b>${place}</b>에 있어요(반짝이는 곳). 거기서부터 세어봐요!`;
+  }
+  gfRender(sid);
+}
+
+function gfTap(sid, key) {
+  const st = ST_STATE[sid];
+  if (st.solved || st.done || st.level == null || st.recall) return;
+  if (st.t0 == null) st.t0 = performance.now();
+  if (st.answers.includes(key)) {
+    st.streak = st.hint === 0 && !st.qMiss ? st.streak + 1 : 0;
+    stSolve(sid);
+    return;
+  }
+  st.mistakes++; st.qMiss = true; st.streak = 0;
+  st.wrong = key;
+  const p = st.spots.find(x => `${x.s}${x.f}` === key);
+  st.msg = `그 자리는 <b>${p.label}</b>이에요. 다시 찾아봐요!${st.hint < 3 ? ' 힌트를 써도 돼요.' : ''}`;
+  gfRender(sid);
+}
+
+function buildGuideFade(s, meta, slideId) {
+  const c = s.color || 'a';
+  const el = document.createElement('div');
+  el.className = 'slide';
+  ST_STATE[slideId] = {
+    fade: true, mode: 'challenge', anchor: 'open', guides: false,
+    key: s.key || 'G', spots: stSpots(s.key || 'G'), levels: s.levels || [], count: s.count || 10,
+    intro: s.intro, level: null, lit: null, streak: 0,
+    color: colorOf(c, meta), accent: '#C26A12', cls: clsOf(c)
+  };
+  el.innerHTML = `
+    <h1 class="slide-title" style="font-size:clamp(16px,2.4vw,22px);">${s.title}</h1>
+    ${s.subtitle ? `<p class="slide-subtitle">${s.subtitle}</p>` : ''}
+    <div class="ornament-card ${clsOf(c)}" style="max-width:600px;" id="st-game-${slideId}"></div>
+  `;
+  queueVexRender(() => gfRender(slideId));
   return el;
 }
 
@@ -6914,6 +7243,8 @@ function loadLesson(data) {
     else if (s.type === 'rhythm_ruler') el = buildRhythmRuler(s, meta, sid);
     else if (s.type === 'rhythm_guess') el = buildRhythmGuess(s, meta, sid);
     else if (s.type === 'score_tap') el = buildScoreTap(s, meta, sid);
+    else if (s.type === 'guide_find') el = buildGuideFind(s, meta, sid);
+    else if (s.type === 'guide_fade') el = buildGuideFade(s, meta, sid);
     else if (s.type === 'video_feature')   el = buildVideoFeature(s, meta, sid);
     else return;
     el.id = sid;

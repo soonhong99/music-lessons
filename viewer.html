@@ -4138,6 +4138,10 @@ function buildScoreTap(s, meta, slideId) {
    position. Also draws a target note and "ghost" open-string notes whose
    opacity is set per note (the fading guides). */
 const TAP_CFG = {};
+// Korean particles that depend on the last syllable's final consonant
+function hasBatchim(w) { const c = w.charCodeAt(w.length - 1); return c >= 0xAC00 && c <= 0xD7A3 && (c - 0xAC00) % 28 !== 0; }
+function eunNeun(w) { return w + (hasBatchim(w) ? '은' : '는'); }
+function ieyo(w) { return w + (hasBatchim(w) ? '이에요' : '예요'); }
 const STEP_LETTERS = 'cdefgab';
 const GUIDE_PLACE = { 'g/3': '덧줄 2개 아래', 'd/4': '오선 아래 칸', 'a/4': '둘째 칸', 'e/5': '넷째 칸' };
 function stepToPos(step) {  // step 0 = e/4, the bottom line
@@ -4251,7 +4255,7 @@ function gfFindRender(sid) {
   const { s, name } = gfOpenName(st.target);
   box.innerHTML = `
     <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text-mid);"><span>${st.n + 1} / ${st.count}</span><span>틀린 횟수 ${st.mistakes}</span></div>
-    <div class="ornament-korean" style="text-align:center;font-size:15px;margin:4px 0;">${st.msg || `<b style="color:${GUIDE_COLOR[s]};">${name}</b>(${s}현 개방현)를 오선에서 찾아 눌러요`}</div>
+    <div class="ornament-korean" style="text-align:center;font-size:15px;margin:4px 0;">${st.msg || `<b style="color:${GUIDE_COLOR[s]};">${name}</b>(${s}현 개방현)${hasBatchim(name) ? '을' : '를'} 오선에서 찾아 눌러요`}</div>
     <div id="gf-staff-${sid}"></div>
     ${st.tip ? `<div style="font-size:12px;color:var(--text-mid);text-align:center;margin-top:4px;">${st.tip}</div>` : ''}`;
   const ghosts = st.showCorrect || st.ok ? [{ pos: st.target, opacity: 1, color: GUIDE_COLOR[s], label: name, blink: !st.ok }] : [];
@@ -4267,13 +4271,13 @@ function gfFindTap(sid, pos) {
   if (posToStep(pos) === posToStep(st.target)) {
     st.ok = true;
     playFingerNote(wtAnalyze([[st.target]], 'C')[0].freq);
-    st.msg = `<b style="color:${st.color};">맞아요!</b> ${name}는 <b>${GUIDE_PLACE[st.target]}</b>`;
+    st.msg = `<b style="color:${st.color};">맞아요!</b> ${eunNeun(name)} <b>${GUIDE_PLACE[st.target]}</b>`;
     gfFindRender(sid);
     setTimeout(() => { st.n++; if (st.n >= st.count) st.done = true; else gfFindNew(sid); gfFindRender(sid); }, 1000);
   } else {
     st.mistakes++;
     st.marker = pos; st.showCorrect = true;
-    st.msg = `아쉬워요! ${name}는 <b>${GUIDE_PLACE[st.target]}</b>이에요. 반짝이는 곳을 눌러봐요`;
+    st.msg = `아쉬워요! ${eunNeun(name)} <b>${ieyo(GUIDE_PLACE[st.target])}</b>. 반짝이는 곳을 눌러봐요`;
     gfFindRender(sid);
   }
 }
@@ -4310,7 +4314,8 @@ function gfStart(sid, li) {
   const st = ST_STATE[sid];
   const lv = st.levels[li];
   Object.assign(st, { level: li, strings: lv.strings, guideStrings: lv.guides, n: 0, mistakes: 0, hints: 0, t0: null, paused: 0,
-    done: false, streak: 0, lastPos: null, unlockChecked: false, passed: false });
+    // startStreak lets a review level begin with the guides already gone
+    done: false, streak: lv.startStreak || 0, lastPos: null, unlockChecked: false, passed: false });
   stNewQuestion(sid);
   gfRender(sid);
 }
@@ -4377,7 +4382,7 @@ function gfRender(sid) {
   renderTapStaff(`st-note-${sid}`, {
     // question note in plain black like a real score, so it never looks like a coloured guide
     key: st.key, target: st.recall ? null : st.q.pos, targetColor: st.wrong ? '#B0413E' : '#1F1E1B',
-    ghosts, marker: null, onTap: st.recall ? 'gfRecallTap' : null, sid, maxWidth: 290
+    ghosts, marker: null, onTap: st.recall ? 'gfRecallTap' : null, sid, maxWidth: st.strings && st.strings.length > 2 ? 225 : 290
   });
 }
 
@@ -4390,7 +4395,7 @@ function gfHint(sid) {
   const name = GUIDE_NAME[fp.s];
   if (st.hint === 1) {
     st.recall = true;
-    st.msg = `먼저 길잡이를 찾아요! <b style="color:${GUIDE_COLOR[fp.s]};">${fp.s}현 ${name}</b>는 오선 어디 있을까요? 눌러봐요`;
+    st.msg = `먼저 길잡이를 찾아요! <b style="color:${GUIDE_COLOR[fp.s]};">${fp.s}현 ${name}</b>${hasBatchim(name) ? '은' : '는'} 오선 어디 있을까요? 눌러봐요`;
   } else if (st.hint === 2) {
     st.recall = false; st.recallShow = true;
     st.path = st.spots.filter(p => p.s === fp.s && p.f <= fp.f).map(p => ({ key: `${p.s}${p.f}`, label: p.label }));
@@ -4410,10 +4415,10 @@ function gfRecallTap(sid, pos) {
   st.recall = false; st.recallShow = true;
   if (posToStep(pos) === posToStep(GUIDE_POS[fp.s])) {
     st.recallWrong = false;
-    st.msg = `<b style="color:${st.color};">맞아요!</b> ${name}는 ${place}. 이제 ${name}에서 줄·칸을 세어봐요!`;
+    st.msg = `<b style="color:${st.color};">맞아요!</b> ${eunNeun(name)} ${place}. 이제 ${name}에서 줄·칸을 세어봐요!`;
   } else {
     st.recallWrong = true;
-    st.msg = `${name}는 <b>${place}</b>에 있어요(반짝이는 곳). 거기서부터 세어봐요!`;
+    st.msg = `${eunNeun(name)} <b>${place}</b>에 있어요(반짝이는 곳). 거기서부터 세어봐요!`;
   }
   gfRender(sid);
 }

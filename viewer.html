@@ -2080,7 +2080,12 @@ const A_STRING_SPOTS = [
   { label: '미♭', semi: 6, finger: '4번', freq: 622.25, hint: '4번 손가락을 3번(레)에 붙여요.' },
   { label: '미',  semi: 7, finger: '4번', freq: 659.25, hint: '4번 손가락을 3번(레)에서 떼요.' }
 ];
-const FINGERBOARDS = { A: A_STRING_SPOTS };
+const FINGERBOARDS = {
+  A: A_STRING_SPOTS,
+  // A string with 레# (raised 3rd finger, touching where 4th plays 미)
+  A_DSHARP: A_STRING_SPOTS.filter(sp => !/♭/.test(sp.label)).concat([
+    { label: '레#', semi: 6, finger: '3번', freq: 622.25, hint: '3번 손가락을 4번(미) 자리에 바짝 붙여요.' }])
+};
 const WT_NAME = { c: '도', d: '레', e: '미', f: '파', g: '솔', a: '라', b: '시' };
 const WT_SEMI = { c: 0, d: 2, e: 4, f: 5, g: 7, a: 9, b: 11 };
 const WT_STATE = {};
@@ -3453,7 +3458,7 @@ function stBoardSvg(sid) {
     if (!rows.includes(p.s)) return;
     const x = p.f === 0 ? x0 + 2 : x0 + p.semi * unit;
     const y = y0 + rows.indexOf(p.s) * gap;
-    const key = `${p.s}${p.f}`;
+    const key = spotKey(p);
     const isAns = st.answers && st.answers.includes(key);
     const lit = st.lit && st.lit.includes(key);
     const wrong = st.wrong === key;
@@ -3485,7 +3490,10 @@ function stBoardSvg(sid) {
   return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:${Math.round(W * 1.25)}px;height:auto;display:block;margin:0 auto;">${g}</svg>`;
 }
 
-function stWhere(key) { const f = +key.slice(1); return `${key[0]}현 ${f === 0 ? '개방현' : f + '번'}`; }
+// spots normally key as string+finger ("A3"); an extra accidental spot on
+// the same finger (레# next to 레) carries its own key ("A3+")
+function spotKey(p) { return p.key || `${p.s}${p.f}`; }
+function stWhere(key) { const f = parseInt(key.slice(1), 10); return `${key[0]}현 ${f === 0 ? '개방현' : f + '번'}`; }
 
 // shortest 도-레-미 count from the nearest 도 to the target, along the
 // spots a beginner would use (the lower string for a shared pitch)
@@ -3514,7 +3522,7 @@ function stNewQuestion(sid) {
   st.lastPos = pos;
   const n = wtAnalyze([[pos]], st.key)[0];
   const midi = Math.round(69 + 12 * Math.log2(n.freq / 440));
-  const answers = st.spots.filter(p => p.midi === midi).map(p => `${p.s}${p.f}`);
+  const answers = st.spots.filter(p => p.midi === midi).map(spotKey);
   Object.assign(st, { q: { pos, label: n.label, freq: n.freq, midi }, answers, hint: 0, path: null, wrong: null, solved: false, msg: '',
     qMiss: false, recall: false, recallShow: false, recallWrong: false });
   // reverse mode lights one of the possible spots
@@ -3667,7 +3675,7 @@ function stTap(sid, key) {
   if (st.scoreTap) { scTap(sid, key); return; }
   if (st.fade) { gfTap(sid, key); return; }
   if (st.mode === 'explore') {
-    const p = st.spots.find(x => `${x.s}${x.f}` === key);
+    const p = st.spots.find(x => spotKey(x) === key);
     playFingerNote(p.freq);
     const same = st.spots.filter(x => x.midi === p.midi).map(x => `${x.s}${x.f}`);
     st.lit = same;
@@ -3680,8 +3688,8 @@ function stTap(sid, key) {
   if (st.answers.includes(key)) { stSolve(sid); return; }
   st.mistakes++;
   st.wrong = key;
-  const p = st.spots.find(x => `${x.s}${x.f}` === key);
-  st.msg = `그 자리는 <b>${p.label}</b>이에요. 다시 찾아봐요!${st.mode === 'challenge' && st.hint < 3 ? ' 힌트를 써도 돼요.' : ''}`;
+  const p = st.spots.find(x => spotKey(x) === key);
+  st.msg = `그 자리는 <b>${p.label}</b>${hasBatchim(p.label) ? '이에요' : '예요'}. 다시 찾아봐요!${st.mode === 'challenge' && st.hint < 3 ? ' 힌트를 써도 돼요.' : ''}`;
   stRender(sid);
 }
 
@@ -4000,7 +4008,7 @@ function renderScoreWindow(id, measures, key, time, cur, strong, guides) {
     const top = Math.floor(bb.y - 4), realH = Math.ceil(bb.height + 8);
     svg.setAttribute('height', realH);
     svg.setAttribute('viewBox', `0 ${top} ${W} ${realH}`);
-    svg.style.cssText = `width:100%;max-width:${Math.round(W * 0.88)}px;height:auto;display:block;margin:0 auto;`;
+    svg.style.cssText = `width:100%;max-width:${Math.round(W * 0.8)}px;height:auto;display:block;margin:0 auto;`;
   }
 }
 
@@ -4010,7 +4018,7 @@ function scSetQ(sid) {
   const midi = Math.round(69 + 12 * Math.log2(n.freq / 440));
   Object.assign(st, {
     q: { pos: n.pos, label: n.label, freq: n.freq, midi },
-    answers: st.spots.filter(p => p.midi === midi).map(p => `${p.s}${p.f}`),
+    answers: st.spots.filter(p => p.midi === midi).map(spotKey),
     hint: 0, path: null, wrong: null, solved: false, msg: ''
   });
 }
@@ -4020,6 +4028,15 @@ function scStart(sid, li) {
   const line = st.lines[li];
   st.level = li;
   st.lineNotes = wtAnalyze(line.measures, st.key);
+  // notes outside the key's first-position spots (e.g. 레# from an
+  // accidental) get their own spot on the board for this line
+  st.spots = stSpots(st.key);
+  st.lineNotes.forEach(n => {
+    const midi = Math.round(69 + 12 * Math.log2(n.freq / 440));
+    if (st.spots.some(p => p.midi === midi)) return;
+    const fp = firstPosition(n.freq);
+    st.spots.push({ s: fp.s, f: fp.f, semi: fp.semi, midi, label: n.label, freq: n.freq, pos: n.pos, key: `${fp.s}${fp.f}+` });
+  });
   // which measure each note is in, for the 2-measure window
   st.noteMeasure = [];
   line.measures.forEach((m, mi) => m.forEach(() => st.noteMeasure.push(mi)));
@@ -4088,8 +4105,8 @@ function scTap(sid, key) {
   if (!st.answers.includes(key)) {
     st.mistakes++;
     st.wrong = key;
-    const p = st.spots.find(x => `${x.s}${x.f}` === key);
-    st.msg = `그 자리는 <b>${p.label}</b>이에요. 다시 찾아봐요!${st.hint < 3 ? ' 힌트를 써도 돼요.' : ''}`;
+    const p = st.spots.find(x => spotKey(x) === key);
+    st.msg = `그 자리는 <b>${p.label}</b>${hasBatchim(p.label) ? '이에요' : '예요'}. 다시 찾아봐요!${st.hint < 3 ? ' 힌트를 써도 돼요.' : ''}`;
     scRender(sid);
     return;
   }
@@ -4097,7 +4114,9 @@ function scTap(sid, key) {
   const pauseStart = performance.now();
   playFingerNote(st.q.freq);
   const fp = firstPosition(st.q.freq);
-  const mainKey = `${fp.s}${fp.f}`;
+  // an accidental spot (e.g. 레# on A3) has its own key, so look it up by pitch
+  const mainSpot = st.spots.find(p => p.midi === st.q.midi && p.s === fp.s);
+  const mainKey = mainSpot ? spotKey(mainSpot) : `${fp.s}${fp.f}`;
   const others = st.answers.filter(k => k !== mainKey);
   const tip = (st.lines[st.level].tips || {})[st.idx];
   st.msg = `<b style="color:${st.color};">${st.q.label}</b> — ${stWhere(key)}${others.length && key === mainKey ? ` (${others.map(stWhere).join(', ')}도 정답)` : ''}${key !== mainKey ? ` (${stWhere(mainKey)}도 정답)` : ''}${tip ? `<br>${tip}` : ''}`;
@@ -4139,7 +4158,11 @@ function buildScoreTap(s, meta, slideId) {
    opacity is set per note (the fading guides). */
 const TAP_CFG = {};
 // Korean particles that depend on the last syllable's final consonant
-function hasBatchim(w) { const c = w.charCodeAt(w.length - 1); return c >= 0xAC00 && c <= 0xD7A3 && (c - 0xAC00) % 28 !== 0; }
+function hasBatchim(w) {
+  if (/[#♭]$/.test(w)) return true;  // read aloud as 샵 / 플랫
+  const c = w.charCodeAt(w.length - 1);
+  return c >= 0xAC00 && c <= 0xD7A3 && (c - 0xAC00) % 28 !== 0;
+}
 function eunNeun(w) { return w + (hasBatchim(w) ? '은' : '는'); }
 function ieyo(w) { return w + (hasBatchim(w) ? '이에요' : '예요'); }
 const STEP_LETTERS = 'cdefgab';
@@ -4434,8 +4457,8 @@ function gfTap(sid, key) {
   }
   st.mistakes++; st.qMiss = true; st.streak = 0;
   st.wrong = key;
-  const p = st.spots.find(x => `${x.s}${x.f}` === key);
-  st.msg = `그 자리는 <b>${p.label}</b>이에요. 다시 찾아봐요!${st.hint < 3 ? ' 힌트를 써도 돼요.' : ''}`;
+  const p = st.spots.find(x => spotKey(x) === key);
+  st.msg = `그 자리는 <b>${p.label}</b>${hasBatchim(p.label) ? '이에요' : '예요'}. 다시 찾아봐요!${st.hint < 3 ? ' 힌트를 써도 돼요.' : ''}`;
   gfRender(sid);
 }
 

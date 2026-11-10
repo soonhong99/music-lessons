@@ -4481,6 +4481,126 @@ function buildGuideFade(s, meta, slideId) {
   return el;
 }
 
+/* ── STRING FAMILY ── violin, viola, cello, double bass drawn to (roughly)
+   true relative size, each with its lowest open string to hear: bigger
+   instrument, lower voice. Shared by the instrument guessing game. */
+const STRING_FAMILY = {
+  violin: { name: '바이올린', size: '약 60cm', low: '솔', freq: 196.00, h: 60, color: '#B07A0E' },
+  viola:  { name: '비올라', size: '약 70cm', low: '도', freq: 130.81, h: 70, color: '#9E5A2E' },
+  cello:  { name: '첼로', size: '약 120cm', low: '도', freq: 65.41, h: 120, color: '#7A3E1E' },
+  bass:   { name: '더블베이스', size: '약 180cm', low: '미', freq: 41.20, h: 180, color: '#4A2A12' }
+};
+function instrumentSvg(key, maxH) {
+  const it = STRING_FAMILY[key];
+  const H = Math.round(maxH * it.h / 180), W = Math.max(18, Math.round(H * 0.36));
+  const bodyH = H * 0.6, bodyY = H - bodyH;
+  return `<svg width="${W + 4}" height="${H + 4}" viewBox="-2 -2 ${W + 4} ${H + 4}" style="display:block;margin:0 auto;">
+    <rect x="${W / 2 - 1.5}" y="${H * 0.08}" width="3" height="${bodyY - H * 0.08 + 4}" fill="#3A2A1A"/>
+    <circle cx="${W / 2}" cy="${H * 0.06}" r="${Math.max(2.5, W * 0.1)}" fill="#3A2A1A"/>
+    <ellipse cx="${W / 2}" cy="${bodyY + bodyH * 0.28}" rx="${W * 0.4}" ry="${bodyH * 0.26}" fill="${it.color}"/>
+    <ellipse cx="${W / 2}" cy="${bodyY + bodyH * 0.72}" rx="${W * 0.5}" ry="${bodyH * 0.3}" fill="${it.color}"/>
+    <line x1="${W / 2}" y1="${H * 0.1}" x2="${W / 2}" y2="${H * 0.92}" stroke="#E8D9B8" stroke-width="0.8"/>
+  </svg>`;
+}
+function playLowNote(freq, dur, btn) {
+  const ctx = getAudioCtx();
+  const t = ctx.currentTime + 0.03, d = dur || 1.4;
+  const o = ctx.createOscillator(), g = ctx.createGain();
+  o.connect(g); g.connect(ctx.destination);
+  o.setPeriodicWave(getViolinWave(ctx));
+  o.frequency.setValueAtTime(freq, t);
+  // very low notes need more level to be heard on small speakers
+  const peak = freq < 80 ? 0.42 : 0.3;
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(peak, t + 0.06);
+  g.gain.setValueAtTime(peak, t + d - 0.25); g.gain.linearRampToValueAtTime(0, t + d);
+  o.start(t); o.stop(t + d + 0.02);
+  if (btn) { btn.disabled = true; setTimeout(() => { btn.disabled = false; }, d * 1000 + 100); }
+}
+function playFamilyDown(btn) {
+  const keys = ['violin', 'viola', 'cello', 'bass'];
+  keys.forEach((k, i) => setTimeout(() => {
+    playLowNote(STRING_FAMILY[k].freq, 1.0);
+    document.querySelectorAll('.sf-card').forEach(c => c.style.outline = c.dataset.k === k ? '3px solid #C26A12' : '');
+  }, i * 1150));
+  setTimeout(() => document.querySelectorAll('.sf-card').forEach(c => c.style.outline = ''), keys.length * 1150 + 200);
+  if (btn) { btn.disabled = true; setTimeout(() => { btn.disabled = false; }, keys.length * 1150); }
+}
+function buildStringFamily(s, meta, slideId) {
+  const c = s.color || 'a';
+  const el = document.createElement('div');
+  el.className = 'slide';
+  const keys = ['violin', 'viola', 'cello', 'bass'];
+  el.innerHTML = `
+    <h1 class="slide-title" style="font-size:clamp(16px,2.4vw,22px);">${s.title}</h1>
+    ${s.subtitle ? `<p class="slide-subtitle">${s.subtitle}</p>` : ''}
+    <div class="ornament-card ${clsOf(c)}" style="max-width:640px;">
+      <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;align-items:end;">
+        ${keys.map(k => { const it = STRING_FAMILY[k]; return `
+          <div class="sf-card" data-k="${k}" style="text-align:center;border-radius:10px;padding:4px 2px;">
+            ${instrumentSvg(k, 150)}
+            <div style="font-family:'Jua',sans-serif;font-size:14px;color:var(--text);margin-top:3px;">${it.name}</div>
+            <div style="font-size:11px;color:var(--text-mid);">${it.size}</div>
+            <button class="btn" style="font-size:11px;padding:3px 8px;margin-top:3px;" onclick="playLowNote(${it.freq}, 1.4, this)">▶ 가장 낮은 ${it.low}</button>
+          </div>`; }).join('')}
+      </div>
+      <div style="text-align:center;margin-top:8px;"><button class="btn btn-${clsOf(c)}" style="font-size:13px;padding:6px 16px;" onclick="playFamilyDown(this)">▶ 큰 악기로 갈수록 차례로 듣기</button></div>
+      ${s.hint ? `<div class="ornament-korean" style="margin-top:8px;">${s.hint}</div>` : ''}
+    </div>
+  `;
+  return el;
+}
+
+/* instrument_guess: hear a low note, pick which string instrument's lowest
+   string it is. Early rounds offer 2 far-apart choices, later all 4. */
+const IG_STATE = {};
+function igRender(sid) {
+  const st = IG_STATE[sid];
+  const box = document.getElementById(`ig-game-${sid}`);
+  if (!st || !box) return;
+  const total = st.rounds.length;
+  if (st.done) {
+    box.innerHTML = `<div style="font-family:'Jua',sans-serif;font-size:18px;text-align:center;margin:18px 0 10px;">다 풀었어요! ${total}문제 중 <b style="color:${st.color};">${st.score}개</b> 정답</div>
+      <div style="text-align:center;"><button class="btn btn-${st.cls}" style="font-size:13px;padding:7px 16px;" onclick="igReset('${sid}')">다시 하기</button></div>`;
+    return;
+  }
+  const r = st.rounds[st.cur];
+  const right = STRING_FAMILY[r.inst];
+  const msg = !st.answered ? (st.heard ? '누구의 가장 낮은 소리일까요?' : '‘▶ 소리 듣기’를 눌러봐요.')
+    : `<b style="color:${st.lastOk ? st.color : '#B0413E'};">${st.lastOk ? '정답!' : '아쉬워요!'}</b> ${right.name}의 가장 낮은 줄, ${right.low}이었어요.`;
+  box.innerHTML = `
+    <div style="display:flex;justify-content:space-between;font-size:12.5px;color:var(--text-mid);margin-bottom:6px;"><span>${st.cur + 1} / ${total}</span><span>맞힌 개수 ${st.score}</span></div>
+    <div style="display:grid;grid-template-columns:repeat(${r.choices.length},minmax(0,1fr));gap:8px;align-items:end;">
+      ${r.choices.map(k => { const it = STRING_FAMILY[k]; const hl = st.answered && k === r.inst; return `
+        <button ${st.answered || !st.heard ? 'disabled' : ''} onclick="igAnswer('${sid}','${k}')" style="background:${hl ? st.light : '#fff'};border:2px solid ${hl ? st.color : '#DDD'};border-radius:12px;padding:6px 2px;cursor:pointer;min-width:0;">
+          ${instrumentSvg(k, 110)}
+          <div style="font-family:'Jua',sans-serif;font-size:14px;color:var(--text);margin-top:3px;">${it.name}</div>
+        </button>`; }).join('')}
+    </div>
+    <div class="ornament-korean" style="margin-top:8px;min-height:24px;text-align:center;">${msg}</div>
+    <div style="display:flex;justify-content:center;gap:8px;margin-top:6px;">
+      <button class="btn" style="font-size:12.5px;padding:7px 14px;" onclick="igPlay('${sid}', this)">▶ 소리 ${st.heard ? '다시 ' : ''}듣기</button>
+      ${st.answered ? `<button class="btn btn-${st.cls}" style="font-size:13px;padding:7px 16px;" onclick="igNext('${sid}')">${st.cur >= total - 1 ? '결과 보기' : '다음 문제 ▶'}</button>` : ''}
+    </div>`;
+}
+function igPlay(sid) { const st = IG_STATE[sid]; if (!st) return; playLowNote(STRING_FAMILY[st.rounds[st.cur].inst].freq, 1.4); if (!st.heard) { st.heard = true; igRender(sid); } }
+function igAnswer(sid, k) { const st = IG_STATE[sid]; if (!st || st.answered) return; st.answered = true; st.lastOk = k === st.rounds[st.cur].inst; if (st.lastOk) st.score++; igRender(sid); }
+function igNext(sid) { const st = IG_STATE[sid]; if (st.cur >= st.rounds.length - 1) st.done = true; else { st.cur++; st.answered = false; st.heard = false; } igRender(sid); }
+function igReset(sid) { const st = IG_STATE[sid]; Object.assign(st, { cur: 0, score: 0, answered: false, heard: false, done: false }); igRender(sid); }
+function buildInstrumentGuess(s, meta, slideId) {
+  const c = s.color || 'a';
+  const el = document.createElement('div');
+  el.className = 'slide';
+  IG_STATE[slideId] = { rounds: s.rounds || [], cur: 0, score: 0, answered: false, heard: false, done: false,
+    color: colorOf(c, meta), light: meta[`color_${c}_light`], cls: clsOf(c) };
+  el.innerHTML = `
+    <h1 class="slide-title" style="font-size:clamp(16px,2.4vw,22px);">${s.title}</h1>
+    ${s.subtitle ? `<p class="slide-subtitle">${s.subtitle}</p>` : ''}
+    <div class="ornament-card ${clsOf(c)}" style="max-width:600px;" id="ig-game-${slideId}"></div>
+  `;
+  queueVexRender(() => igRender(slideId));
+  return el;
+}
+
 /* ── CHORD GALLERY BUILDER ── multiple root pairs (major/minor), each with
    its own play button, so the bright/dark contrast is heard repeat across
    different chords instead of just one example. */
@@ -7273,6 +7393,8 @@ function loadLesson(data) {
     else if (s.type === 'score_tap') el = buildScoreTap(s, meta, sid);
     else if (s.type === 'guide_find') el = buildGuideFind(s, meta, sid);
     else if (s.type === 'guide_fade') el = buildGuideFade(s, meta, sid);
+    else if (s.type === 'string_family') el = buildStringFamily(s, meta, sid);
+    else if (s.type === 'instrument_guess') el = buildInstrumentGuess(s, meta, sid);
     else if (s.type === 'video_feature')   el = buildVideoFeature(s, meta, sid);
     else return;
     el.id = sid;

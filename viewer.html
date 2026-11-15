@@ -1006,6 +1006,8 @@ svg.wedge { display: block; }
 }
 .staff-ornament svg { max-width: 100% !important; height: auto !important; }
 .ghost-blink { animation: ghostBlink 0.9s ease-in-out infinite; }
+.memo-fall { animation: memoFall 1.2s ease-in forwards; }
+@keyframes memoFall { 0% { opacity: 1; transform: translate(0,0); } 100% { opacity: 0; transform: translate(0,40px) rotate(25deg); } }
 @keyframes ghostBlink { 0%,100% { opacity: 1; } 50% { opacity: 0.2; } }
 .ornament-detail { flex: 1; display: flex; flex-direction: column; gap: 4px; min-width: 200px; }
 .ornament-name-big { font-family: 'Jua', sans-serif; font-size: 22px; line-height: 1; }
@@ -3487,7 +3489,7 @@ function stBoardSvg(sid) {
         ${showName ? `<text x="${x + 11}" y="${y - 7}" font-size="11.5" fill="${col}" font-family="'Jua', sans-serif" style="pointer-events:none">${name}</text>` : ''}
       </g>`;
   });
-  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:${Math.round(W * 1.25)}px;height:auto;display:block;margin:0 auto;">${g}</svg>`;
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:${Math.round(W * (st.house ? 1 : 1.25))}px;height:auto;display:block;margin:0 auto;">${g}</svg>`;
 }
 
 // spots normally key as string+finger ("A3"); an extra accidental spot on
@@ -4012,6 +4014,23 @@ function renderScoreWindow(id, measures, key, time, cur, strong, guides) {
   }
 }
 
+// the house picture for score_tap: rooms = measures of the line, the
+// explorer stands in the current one, door notes come from the 쪽지 rules
+function scHouse(sid) {
+  const st = ST_STATE[sid];
+  const line = st.lines[st.level];
+  const cur = st.lineNotes[st.idx];
+  const rooms = line.measures.map((m, mi) => ({
+    state: mi < cur.m ? 'done' : mi === cur.m ? 'current' : 'todo',
+    memo: mi === cur.m ? cur.memo : [], dropped: null
+  }));
+  if (cur.m > 0 && cur.n === 0) {
+    const prev = st.lineNotes.filter(n => n.m === cur.m - 1).pop();
+    if (prev && prev.memo.length) rooms[cur.m - 1].dropped = prev.memo[0];
+  }
+  return houseSvg(rooms, keyRoofText(st.key), st.color);
+}
+
 function scSetQ(sid) {
   const st = ST_STATE[sid];
   const n = st.lineNotes[st.idx];
@@ -4085,7 +4104,12 @@ function scRender(sid) {
       <span>${line.label} · ${line.start + w0}~${line.start + Math.min(w0 + 1, line.measures.length - 1)}마디 · ${st.idx + 1} / ${st.lineNotes.length}</span>
       <span>틀린 횟수 ${st.mistakes} · 힌트 ${st.hints}</span>
     </div>
-    <div id="st-note-${sid}"></div>
+    ${st.house
+      ? `<div style="display:flex;align-items:center;gap:6px;">
+           <div style="flex:0 0 44%;min-width:0;">${scHouse(sid)}</div>
+           <div id="st-note-${sid}" style="flex:1;min-width:0;"></div>
+         </div>`
+      : `<div id="st-note-${sid}"></div>`}
     ${stBoardSvg(sid)}
     <div class="ornament-korean" style="text-align:center;min-height:22px;margin-top:3px;font-size:13px;">${st.msg || '색칠된 음을 짚는 자리를 눌러요'}</div>
     <div style="display:flex;justify-content:center;flex-wrap:wrap;gap:6px;margin-top:4px;">
@@ -4118,7 +4142,9 @@ function scTap(sid, key) {
   const mainSpot = st.spots.find(p => p.midi === st.q.midi && p.s === fp.s);
   const mainKey = mainSpot ? spotKey(mainSpot) : `${fp.s}${fp.f}`;
   const others = st.answers.filter(k => k !== mainKey);
-  const tip = (st.lines[st.level].tips || {})[st.idx];
+  const nq = st.lineNotes[st.idx];
+  // in the house game every 레/파 explains its 쪽지·약속 automatically
+  const tip = (st.lines[st.level].tips || {})[st.idx] || (st.house && nq.ruleful ? nq.why : '');
   st.msg = `<b style="color:${st.color};">${st.q.label}</b> — ${stWhere(key)}${others.length && key === mainKey ? ` (${others.map(stWhere).join(', ')}도 정답)` : ''}${key !== mainKey ? ` (${stWhere(mainKey)}도 정답)` : ''}${tip ? `<br>${tip}` : ''}`;
   scRender(sid);
   setTimeout(() => {
@@ -4138,7 +4164,7 @@ function buildScoreTap(s, meta, slideId) {
   const el = document.createElement('div');
   el.className = 'slide';
   ST_STATE[slideId] = {
-    scoreTap: true, mode: 'challenge', anchor: 'open', guides: !!s.guides,
+    scoreTap: true, mode: 'challenge', anchor: 'open', guides: !!s.guides, house: !!s.house, strings: s.strings || null,
     key: s.key || 'G', time: s.time || null, spots: stSpots(s.key || 'G'),
     lines: s.lines || [], intro: s.intro, level: null, lit: null,
     color: colorOf(c, meta), accent: '#C26A12', cls: clsOf(c)
@@ -4235,7 +4261,7 @@ function renderTapStaff(id, o) {
     const top = stave.getYForLine(0) - 30, bot = stave.getYForLine(4) + 34;
     r.setAttribute('x', stave.getNoteStartX() - 10); r.setAttribute('y', top);
     r.setAttribute('width', W - stave.getNoteStartX() + 6); r.setAttribute('height', bot - top);
-    r.setAttribute('fill', 'transparent'); r.style.cursor = 'pointer';
+    r.setAttribute('fill', 'transparent'); r.setAttribute('stroke', 'none'); r.style.cursor = 'pointer';
     r.setAttribute('onclick', `tapStaffEvent(event,'${id}')`);
     svg.appendChild(r);
     TAP_CFG[id] = { bottomY: stave.getYForLine(4), onTap: o.onTap, sid: o.sid };
@@ -4598,6 +4624,291 @@ function buildInstrumentGuess(s, meta, slideId) {
     <div class="ornament-card ${clsOf(c)}" style="max-width:600px;" id="ig-game-${slideId}"></div>
   `;
   queueVexRender(() => igRender(slideId));
+  return el;
+}
+
+/* ── HOUSE PICTURE ── the 33번 metaphor drawn literally: the piece is a
+   house whose roof carries the key signature ("파# 약속"), each measure is
+   a room, an accidental is a note stuck on that room's door, and leaving
+   a room makes its note fall off. rooms: [{ state: 'done'|'current'|'todo',
+   memo: ['레#'] (notes on the door), dropped: bool (falling note) }] */
+function houseSvg(rooms, roofText, color) {
+  const n = rooms.length, rw = 58, gap = 4, x0 = 8;
+  const W = x0 * 2 + n * rw + (n - 1) * gap, H = 112;
+  const roofY = 30, wallY = 38;
+  let g = `
+    <polygon points="${x0 - 4},${wallY} ${W / 2},4 ${W - x0 + 4},${wallY}" fill="#E8DCC8" stroke="#8A6A4A" stroke-width="2"/>
+    <rect x="${W / 2 - 44}" y="${roofY - 14}" width="88" height="17" rx="4" fill="#FFF" stroke="#8A6A4A" stroke-width="1.2"/>
+    <text x="${W / 2}" y="${roofY - 1.5}" font-size="11" text-anchor="middle" fill="#5A3E1E" font-family="'Jua', sans-serif">${roofText}</text>`;
+  rooms.forEach((r, i) => {
+    const x = x0 + i * (rw + gap), y = wallY;
+    const cur = r.state === 'current';
+    g += `<rect x="${x}" y="${y}" width="${rw}" height="68" fill="${cur ? '#FFF6E0' : r.state === 'done' ? '#F1EFEA' : '#FFF'}" stroke="${cur ? color : '#B8A890'}" stroke-width="${cur ? 2.4 : 1.4}"/>
+      <rect x="${x + rw / 2 - 11}" y="${y + 34}" width="22" height="34" rx="2" fill="${r.state === 'done' ? '#D8D2C6' : '#C9A878'}"/>
+      <circle cx="${x + rw / 2 + 7}" cy="${y + 52}" r="1.6" fill="#5A3E1E"/>
+      <text x="${x + rw / 2}" y="${y + 13}" font-size="10" text-anchor="middle" fill="#8A877F" font-family="'Jua', sans-serif">${i + 1}번 방</text>`;
+    (r.memo || []).forEach((m, k) => {
+      const nat = m.includes('♮');
+      g += `<g transform="translate(${x + rw / 2 - 13 + k * 4},${y + 37 + k * 9}) rotate(-6)">
+        <rect width="26" height="15" rx="2" fill="${nat ? '#CFEFD9' : '#FFE88A'}" stroke="${nat ? '#2E8A5A' : '#C9A017'}" stroke-width="1"/>
+        <text x="13" y="11" font-size="10" text-anchor="middle" fill="#3A3833" font-family="'Jua', sans-serif">${m}</text></g>`;
+    });
+    if (r.dropped) {
+      // outer group positions, inner group animates (a CSS transform would
+      // otherwise replace the SVG translate)
+      g += `<g transform="translate(${x + rw / 2 - 13},${y + 37})"><g class="memo-fall">
+        <rect width="26" height="15" rx="2" fill="#FFE88A" stroke="#C9A017" stroke-width="1"/>
+        <text x="13" y="11" font-size="10" text-anchor="middle" fill="#3A3833" font-family="'Jua', sans-serif">${r.dropped}</text></g></g>`;
+    }
+    if (cur) {
+      // the explorer: a simple round face standing in the room
+      const cx = x + 13, cy = y + 52;
+      g += `<circle cx="${cx}" cy="${cy}" r="8" fill="${color}"/>
+        <circle cx="${cx - 2.6}" cy="${cy - 1.5}" r="1.3" fill="#FFF"/><circle cx="${cx + 2.6}" cy="${cy - 1.5}" r="1.3" fill="#FFF"/>
+        <path d="M${cx - 3} ${cy + 2.5} Q${cx} ${cy + 5} ${cx + 3} ${cy + 2.5}" stroke="#FFF" stroke-width="1.2" fill="none"/>
+        <rect x="${cx - 5}" y="${cy + 8}" width="10" height="7" rx="3" fill="${color}"/>`;
+    }
+  });
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:${Math.round(W * 1.15)}px;height:auto;display:block;margin:0 auto;">${g}</svg>`;
+}
+function keyRoofText(key) {
+  const t = Object.entries(WT_KEY_ACC[key] || {}).map(([l, a]) => WT_NAME[l] + WT_SYM[a]).join('·');
+  return t ? `집 약속: ${t}` : '집 약속 없음';
+}
+function buildHouseIntro(s, meta, slideId) {
+  const el = document.createElement('div');
+  el.className = 'slide';
+  el.innerHTML = `
+    <h1 class="slide-title" style="font-size:clamp(16px,2.4vw,22px);">${s.title}</h1>
+    ${s.subtitle ? `<p class="slide-subtitle">${s.subtitle}</p>` : ''}
+    <div class="ornament-card ${clsOf(s.color || 'a')}" style="max-width:600px;">
+      ${houseSvg(s.rooms || [], keyRoofText(s.key || 'G'), colorOf(s.color || 'a', meta))}
+      <div style="display:flex;flex-direction:column;gap:5px;margin-top:8px;">
+        ${(s.items || []).map(it => `<div style="font-size:13px;line-height:1.5;"><b style="font-family:'Jua',sans-serif;">${it.title}</b> — ${it.desc}</div>`).join('')}
+      </div>
+    </div>`;
+  return el;
+}
+
+/* ── CLICK STAFF ── a short score whose notes can be tapped; optional text
+   above each note (e.g. what 보보 played) and a ring/colour per note. */
+const CS_CFG = {};
+function renderClickStaff(id, measures, key, time, o) {
+  const container = document.getElementById(id);
+  if (!container) return;
+  container.innerHTML = '';
+  const { Renderer, Stave, StaveNote, Voice, Formatter, Accidental } = Vex.Flow;
+  const perNote = 64;
+  const head = 66 + Object.keys(WT_KEY_ACC[key] || {}).length * 11 + (time ? 24 : 0);
+  const widths = measures.map((m, i) => (i === 0 ? head : 16) + m.length * perNote + 8);
+  const W = widths.reduce((a, b) => a + b, 0) + 10, H = 150;
+  const renderer = new Renderer(container, Renderer.Backends.SVG);
+  renderer.resize(W, H);
+  const ctx = renderer.getContext();
+  let x = 5, idx = 0;
+  const hits = [];
+  measures.forEach((m, mi) => {
+    const stave = new Stave(x, 40, widths[mi]);
+    if (mi === 0) { stave.addClef('treble'); if (key !== 'C') stave.addKeySignature(key); if (time) stave.addTimeSignature(time); }
+    x += widths[mi];
+    ctx.setFillStyle('#3A3833'); ctx.setStrokeStyle('#3A3833');
+    stave.setContext(ctx).draw();
+    const notes = m.map(spec => {
+      const [p, acc] = spec.split(':');
+      const col = (o.colors && o.colors[idx]) || '#1F1E1B';
+      const vn = new StaveNote({ keys: [p], duration: 'q', auto_stem: true });
+      if (acc) { const a = new Accidental(acc); a.setStyle({ fillStyle: col, strokeStyle: col }); vn.addModifier(a, 0); }
+      vn.setStyle({ fillStyle: col, strokeStyle: col });
+      vn._i = idx++;
+      return vn;
+    });
+    const voice = new Voice({ num_beats: 3, beat_value: 4 }).setStrict(false).addTickables(notes);
+    new Formatter().joinVoices([voice]).formatToStave([voice], stave);
+    voice.draw(ctx, stave);
+    notes.forEach(vn => {
+      const i = vn._i, nx = vn.getAbsoluteX() + 6, ny = vn.getYs()[0];
+      if (o.labels && o.labels[i]) {
+        ctx.save(); ctx.setFont('Jua, sans-serif', 12.5, 'normal');
+        ctx.setFillStyle((o.labelColors && o.labelColors[i]) || '#6A675F');
+        ctx.fillText(o.labels[i], nx - (o.labels[i].length > 1 ? 9 : 5), stave.getYForLine(0) - 22);
+        ctx.restore();
+      }
+      if (o.rings && o.rings[i]) {
+        ctx.save(); ctx.setStrokeStyle(o.rings[i]); ctx.setLineWidth(2.2);
+        ctx.beginPath(); ctx.arc(nx, ny, 12, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+      }
+      hits.push({ i, x: nx - 22, w: 44, top: stave.getYForLine(0) - 36, bot: stave.getYForLine(4) + 26 });
+    });
+  });
+  const svg = container.querySelector('svg');
+  if (!svg) return;
+  if (o.onTap) hits.forEach(h => {
+    const r = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    r.setAttribute('x', h.x); r.setAttribute('y', h.top); r.setAttribute('width', h.w); r.setAttribute('height', h.bot - h.top);
+    r.setAttribute('fill', 'transparent'); r.setAttribute('stroke', 'none'); r.style.cursor = 'pointer';
+    r.setAttribute('onclick', `${o.onTap}('${o.sid}',${h.i})`);
+    svg.appendChild(r);
+  });
+  const bb = svg.getBBox();
+  const top = Math.floor(bb.y - 4), realH = Math.ceil(bb.height + 8);
+  svg.setAttribute('height', realH);
+  svg.setAttribute('viewBox', `0 ${top} ${W} ${realH}`);
+  svg.style.cssText = `width:100%;max-width:${Math.round(W * (o.scale || 1))}px;height:auto;display:block;margin:0 auto;`;
+}
+
+/* spot_errors: "보보의 실수를 찾아라" — 보보's note names are written above
+   the notes; tap the ones 보보 got wrong. The explanation comes from the
+   same 쪽지/약속 rules (wtAnalyze), so it always matches the score. */
+const SE_STATE = {};
+function seWhere(n) {
+  const fp = firstPosition(n.freq);
+  if (/#/.test(n.label) && fp.f === 3) return `${fp.s}현 3번을 4번 자리에 붙여서`;
+  return `${fp.s}현 ${fp.f === 0 ? '개방현' : fp.f + '번'}으로`;
+}
+function seRender(sid) {
+  const st = SE_STATE[sid];
+  const box = document.getElementById(`se-game-${sid}`);
+  if (!st || !box) return;
+  if (st.done) {
+    box.innerHTML = `<div style="font-family:'Jua',sans-serif;font-size:18px;text-align:center;margin:16px 0 8px;">보보의 실수를 모두 찾았어요! 헛짚은 횟수 ${st.misses}번</div>
+      <div style="text-align:center;"><button class="btn btn-${st.cls}" style="font-size:13px;padding:7px 16px;" onclick="seStart('${sid}')">다시 하기</button></div>`;
+    return;
+  }
+  const r = st.rounds[st.cur];
+  const errs = r.bobo.map((b, i) => b !== st.notes[i].label ? i : -1).filter(i => i >= 0);
+  const left = errs.filter(i => !st.found.includes(i)).length;
+  box.innerHTML = `
+    <div style="display:flex;justify-content:space-between;font-size:12.5px;color:var(--text-mid);"><span>${st.cur + 1} / ${st.rounds.length}판</span><span>헛짚은 횟수 ${st.misses}</span></div>
+    <div class="ornament-korean" style="text-align:center;margin:4px 0;">${left ? `보보가 연주한 음이 음표 위에 적혀 있어요. <b>틀린 음 ${left}개</b>를 찾아 눌러요!` : '<b>이 판의 실수를 모두 찾았어요!</b>'}</div>
+    <div id="se-staff-${sid}"></div>
+    <div class="ornament-korean" style="margin-top:6px;min-height:40px;font-size:13px;">${st.msg || ''}</div>
+    ${left === 0 ? `<div style="text-align:center;margin-top:6px;"><button class="btn btn-${st.cls}" style="font-size:13px;padding:7px 16px;" onclick="seNext('${sid}')">${st.cur >= st.rounds.length - 1 ? '결과 보기' : '다음 판 ▶'}</button></div>` : ''}`;
+  const rings = r.bobo.map((_, i) => st.found.includes(i) ? '#2E8A5A' : st.lastMiss === i ? '#B0413E' : null);
+  const labels = r.bobo.map((b, i) => st.found.includes(i) ? st.notes[i].label : b);
+  const labelColors = r.bobo.map((_, i) => st.found.includes(i) ? '#2E8A5A' : '#6A675F');
+  renderClickStaff(`se-staff-${sid}`, r.measures, st.key, st.time, { labels, labelColors, rings, onTap: left ? 'seTap' : null, sid, scale: 0.95 });
+}
+function seTap(sid, i) {
+  const st = SE_STATE[sid];
+  const r = st.rounds[st.cur];
+  const n = st.notes[i];
+  if (st.found.includes(i)) return;
+  if (r.bobo[i] !== n.label) {
+    st.found.push(i); st.lastMiss = null;
+    playFingerNote(n.freq);
+    st.msg = `<b style="color:#2E8A5A;">찾았어요!</b> 보보는 '${r.bobo[i]}'라고 했지만 정답은 <b>${n.label}</b>. ${n.why} (${seWhere(n)} 짚어요)`;
+  } else {
+    st.misses++; st.lastMiss = i;
+    st.msg = `이 음은 보보가 맞게 연주했어요. <b>${n.label}</b> 맞아요! 다른 곳을 찾아봐요.`;
+  }
+  seRender(sid);
+}
+function seNext(sid) {
+  const st = SE_STATE[sid];
+  if (st.cur >= st.rounds.length - 1) { st.done = true; seRender(sid); return; }
+  st.cur++; seLoad(sid);
+}
+function seLoad(sid) {
+  const st = SE_STATE[sid];
+  st.notes = wtAnalyze(st.rounds[st.cur].measures, st.key);
+  Object.assign(st, { found: [], lastMiss: null, msg: '' });
+  seRender(sid);
+}
+function seStart(sid) { const st = SE_STATE[sid]; Object.assign(st, { cur: 0, misses: 0, done: false }); seLoad(sid); }
+function buildSpotErrors(s, meta, slideId) {
+  const c = s.color || 'a';
+  const el = document.createElement('div');
+  el.className = 'slide';
+  SE_STATE[slideId] = { rounds: s.rounds || [], key: s.key || 'G', time: s.time || null, cls: clsOf(c) };
+  el.innerHTML = `
+    <h1 class="slide-title" style="font-size:clamp(16px,2.4vw,22px);">${s.title}</h1>
+    ${s.subtitle ? `<p class="slide-subtitle">${s.subtitle}</p>` : ''}
+    <div class="ornament-card ${clsOf(c)}" style="max-width:620px;" id="se-game-${slideId}"></div>`;
+  queueVexRender(() => seStart(slideId));
+  return el;
+}
+
+/* accidental_fix: "쪽지 붙이기" — the score comes with no accidentals; hear
+   the real tune, tap notes to cycle none → # → ♮, then check. Judged by
+   the pitches that result (a needless courtesy ♮ is fine), not by marks. */
+const AF_STATE = {};
+const AF_CYCLE = ['', '#', 'n'];
+function afMeasures(st) {
+  let k = 0;
+  return st.rounds[st.cur].target.map(m => m.map(spec => { const p = spec.split(':')[0]; const a = st.marks[k++]; return a ? `${p}:${a}` : p; }));
+}
+function afRender(sid) {
+  const st = AF_STATE[sid];
+  const box = document.getElementById(`af-game-${sid}`);
+  if (!st || !box) return;
+  if (st.done) {
+    box.innerHTML = `<div style="font-family:'Jua',sans-serif;font-size:18px;text-align:center;margin:16px 0 8px;">쪽지를 모두 알맞게 붙였어요! 다시 확인한 횟수 ${st.retries}번</div>
+      <div style="text-align:center;"><button class="btn btn-${st.cls}" style="font-size:13px;padding:7px 16px;" onclick="afStart('${sid}')">다시 하기</button></div>`;
+    return;
+  }
+  const mine = wtAnalyze(afMeasures(st), st.key);
+  const labels = st.checked ? mine.map(n => n.label) : null;
+  const rings = st.checked ? mine.map((n, i) => n.label === st.target[i].label ? null : '#B0413E') : null;
+  box.innerHTML = `
+    <div style="display:flex;justify-content:space-between;font-size:12.5px;color:var(--text-mid);"><span>${st.cur + 1} / ${st.rounds.length}</span><span>${st.rounds[st.cur].hint || ''}</span></div>
+    <div class="ornament-korean" style="text-align:center;margin:4px 0;font-size:13px;">진짜 소리를 듣고, 쪽지가 필요한 음표를 눌러요. 누를 때마다 <b>없음 → # → ♮</b>로 바뀌어요.</div>
+    <div id="af-staff-${sid}"></div>
+    <div class="ornament-korean" style="margin-top:6px;min-height:36px;font-size:13px;">${st.msg || ''}</div>
+    <div style="display:flex;justify-content:center;flex-wrap:wrap;gap:8px;margin-top:6px;">
+      <button class="btn" style="font-size:12.5px;padding:6px 12px;" onclick="playMelody(AF_STATE['${sid}'].rounds[AF_STATE['${sid}'].cur].target, AF_STATE['${sid}'].key, 100, this)">▶ 진짜 소리</button>
+      <button class="btn" style="font-size:12.5px;padding:6px 12px;" onclick="playMelody(afMeasures(AF_STATE['${sid}']), AF_STATE['${sid}'].key, 100, this)">▶ 내 악보 소리</button>
+      ${st.solved ? `<button class="btn btn-${st.cls}" style="font-size:13px;padding:6px 16px;" onclick="afNext('${sid}')">${st.cur >= st.rounds.length - 1 ? '결과 보기' : '다음 문제 ▶'}</button>`
+        : `<button class="btn btn-${st.cls}" style="font-size:13px;padding:6px 16px;" onclick="afCheck('${sid}')">확인!</button>`}
+    </div>`;
+  renderClickStaff(`af-staff-${sid}`, afMeasures(st), st.key, null, { labels, rings, onTap: st.solved ? null : 'afTap', sid, scale: 0.95,
+    labelColors: rings ? rings.map(r => r ? '#B0413E' : '#2E8A5A') : null });
+}
+function afTap(sid, i) {
+  const st = AF_STATE[sid];
+  if (st.solved) return;
+  st.marks[i] = AF_CYCLE[(AF_CYCLE.indexOf(st.marks[i]) + 1) % AF_CYCLE.length];
+  st.checked = false; st.msg = '';
+  afRender(sid);
+}
+function afCheck(sid) {
+  const st = AF_STATE[sid];
+  const mine = wtAnalyze(afMeasures(st), st.key);
+  const wrong = mine.map((n, i) => n.label === st.target[i].label ? -1 : i).filter(i => i >= 0);
+  st.checked = true;
+  if (!wrong.length) {
+    st.solved = true;
+    st.msg = `<b style="color:#2E8A5A;">완벽해요!</b> 쪽지를 알맞게 붙였어요. 내 악보 소리가 진짜 소리와 똑같아요.`;
+    playMelody(afMeasures(st), st.key, 100);
+  } else {
+    st.retries++;
+    const n = st.target[wrong[0]];
+    st.msg = `빨간 동그라미 음이 진짜 소리와 달라요. 그 음은 <b>${n.label}</b>${hasBatchim(n.label) ? '이어야' : '여야'} 해요. 쪽지를 고쳐봐요! (같은 방의 쪽지는 마디가 끝날 때까지 살아 있어요)`;
+  }
+  afRender(sid);
+}
+function afNext(sid) {
+  const st = AF_STATE[sid];
+  if (st.cur >= st.rounds.length - 1) { st.done = true; afRender(sid); return; }
+  st.cur++; afLoad(sid);
+}
+function afLoad(sid) {
+  const st = AF_STATE[sid];
+  const r = st.rounds[st.cur];
+  st.target = wtAnalyze(r.target, st.key);
+  Object.assign(st, { marks: r.target.flat().map(() => ''), checked: false, solved: false, msg: '' });
+  afRender(sid);
+}
+function afStart(sid) { const st = AF_STATE[sid]; Object.assign(st, { cur: 0, retries: 0, done: false }); afLoad(sid); }
+function buildAccidentalFix(s, meta, slideId) {
+  const c = s.color || 'a';
+  const el = document.createElement('div');
+  el.className = 'slide';
+  AF_STATE[slideId] = { rounds: s.rounds || [], key: s.key || 'G', cls: clsOf(c) };
+  el.innerHTML = `
+    <h1 class="slide-title" style="font-size:clamp(16px,2.4vw,22px);">${s.title}</h1>
+    ${s.subtitle ? `<p class="slide-subtitle">${s.subtitle}</p>` : ''}
+    <div class="ornament-card ${clsOf(c)}" style="max-width:620px;" id="af-game-${slideId}"></div>`;
+  queueVexRender(() => afStart(slideId));
   return el;
 }
 
@@ -7395,6 +7706,9 @@ function loadLesson(data) {
     else if (s.type === 'guide_fade') el = buildGuideFade(s, meta, sid);
     else if (s.type === 'string_family') el = buildStringFamily(s, meta, sid);
     else if (s.type === 'instrument_guess') el = buildInstrumentGuess(s, meta, sid);
+    else if (s.type === 'house_intro') el = buildHouseIntro(s, meta, sid);
+    else if (s.type === 'spot_errors') el = buildSpotErrors(s, meta, sid);
+    else if (s.type === 'accidental_fix') el = buildAccidentalFix(s, meta, sid);
     else if (s.type === 'video_feature')   el = buildVideoFeature(s, meta, sid);
     else return;
     el.id = sid;

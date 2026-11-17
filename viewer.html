@@ -4782,7 +4782,9 @@ function seRender(sid) {
     <div class="ornament-korean" style="text-align:center;margin:4px 0;">${left ? `보보가 연주한 음이 음표 위에 적혀 있어요. <b>틀린 음 ${left}개</b>를 찾아 눌러요!` : '<b>이 판의 실수를 모두 찾았어요!</b>'}</div>
     <div id="se-staff-${sid}"></div>
     <div class="ornament-korean" style="margin-top:6px;min-height:40px;font-size:13px;">${st.msg || ''}</div>
-    ${left === 0 ? `<div style="text-align:center;margin-top:6px;"><button class="btn btn-${st.cls}" style="font-size:13px;padding:7px 16px;" onclick="seNext('${sid}')">${st.cur >= st.rounds.length - 1 ? '결과 보기' : '다음 판 ▶'}</button></div>` : ''}`;
+    <div style="text-align:center;margin-top:6px;">${left === 0
+      ? `<button class="btn btn-${st.cls}" style="font-size:13px;padding:7px 16px;" onclick="seNext('${sid}')">${st.cur >= st.rounds.length - 1 ? '결과 보기' : '다음 판 ▶'}</button>`
+      : `<button class="btn" style="font-size:12px;padding:5px 12px;" onclick="seHint('${sid}')">힌트: 어느 방일까?</button>`}</div>`;
   const rings = r.bobo.map((_, i) => st.found.includes(i) ? '#2E8A5A' : st.lastMiss === i ? '#B0413E' : null);
   const labels = r.bobo.map((b, i) => st.found.includes(i) ? st.notes[i].label : b);
   const labelColors = r.bobo.map((_, i) => st.found.includes(i) ? '#2E8A5A' : '#6A675F');
@@ -4801,6 +4803,15 @@ function seTap(sid, i) {
     st.misses++; st.lastMiss = i;
     st.msg = `이 음은 보보가 맞게 연주했어요. <b>${n.label}</b> 맞아요! 다른 곳을 찾아봐요.`;
   }
+  seRender(sid);
+}
+function seHint(sid) {
+  const st = SE_STATE[sid];
+  const r = st.rounds[st.cur];
+  const i = r.bobo.findIndex((b, k) => b !== st.notes[k].label && !st.found.includes(k));
+  if (i < 0) return;
+  st.hints = (st.hints || 0) + 1;
+  st.msg = `힌트: 실수는 <b>${st.notes[i].m + 1}번 방</b>(${st.notes[i].m + 1}번째 마디)에 숨어 있어요. 그 방에 쪽지가 있는지, 앞 방에서 쪽지를 가지고 나오지 않았는지 살펴봐요!`;
   seRender(sid);
 }
 function seNext(sid) {
@@ -4909,6 +4920,52 @@ function buildAccidentalFix(s, meta, slideId) {
     ${s.subtitle ? `<p class="slide-subtitle">${s.subtitle}</p>` : ''}
     <div class="ornament-card ${clsOf(c)}" style="max-width:620px;" id="af-game-${slideId}"></div>`;
   queueVexRender(() => afStart(slideId));
+  return el;
+}
+
+/* ── VIDEO GUESS ── one concert video, played a piece at a time (start/
+   end seconds); the child picks which animal the music is, then sees
+   which instrument made it. */
+const VG_STATE = {};
+function vgRender(sid) {
+  const st = VG_STATE[sid];
+  const box = document.getElementById(`vg-game-${sid}`);
+  if (!st || !box) return;
+  const total = st.rounds.length;
+  if (st.done) {
+    box.innerHTML = `<div style="font-family:'Jua',sans-serif;font-size:18px;text-align:center;margin:18px 0 10px;">${total}곡 중 <b style="color:${st.color};">${st.score}곡</b>을 맞혔어요!</div>
+      <div style="text-align:center;"><button class="btn btn-${st.cls}" style="font-size:13px;padding:7px 16px;" onclick="vgReset('${sid}')">다시 하기</button></div>`;
+    return;
+  }
+  const r = st.rounds[st.cur];
+  const msg = !st.answered ? '음악을 끝까지 듣고, 어떤 동물인지 골라봐요!'
+    : `<b style="color:${st.lastOk ? st.color : '#B0413E'};">${st.lastOk ? '정답!' : '아쉬워요!'}</b> 「${r.choices[r.answer]}」예요. ${r.reveal || ''}`;
+  box.innerHTML = `
+    <div style="display:flex;justify-content:space-between;font-size:12.5px;color:var(--text-mid);margin-bottom:4px;"><span>${st.cur + 1} / ${total}곡</span><span>맞힌 곡 ${st.score}</span></div>
+    <div class="yt-frame-wrap" style="max-width:420px;margin:0 auto;">
+      <iframe class="yt-frame" src="https://www.youtube-nocookie.com/embed/${st.video}?start=${r.start}&end=${r.end}&rel=0&modestbranding=1"
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+    </div>
+    <div class="ornament-korean" style="margin-top:6px;min-height:36px;font-size:13px;">${msg}</div>
+    <div style="display:flex;justify-content:center;flex-wrap:wrap;gap:8px;margin-top:6px;">
+      ${st.answered
+        ? `<button class="btn btn-${st.cls}" style="font-size:13px;padding:7px 16px;" onclick="vgNext('${sid}')">${st.cur >= total - 1 ? '결과 보기' : '다음 곡 ▶'}</button>`
+        : r.choices.map((c, i) => `<button class="btn btn-${st.cls}" style="font-size:15px;padding:7px 16px;font-family:'Jua',sans-serif;" onclick="vgAnswer('${sid}',${i})">${c}</button>`).join('')}
+    </div>`;
+}
+function vgAnswer(sid, i) { const st = VG_STATE[sid]; if (st.answered) return; st.answered = true; st.lastOk = i === st.rounds[st.cur].answer; if (st.lastOk) st.score++; vgRender(sid); }
+function vgNext(sid) { const st = VG_STATE[sid]; if (st.cur >= st.rounds.length - 1) st.done = true; else { st.cur++; st.answered = false; } vgRender(sid); }
+function vgReset(sid) { const st = VG_STATE[sid]; Object.assign(st, { cur: 0, score: 0, answered: false, done: false }); vgRender(sid); }
+function buildVideoGuess(s, meta, slideId) {
+  const c = s.color || 'a';
+  const el = document.createElement('div');
+  el.className = 'slide';
+  VG_STATE[slideId] = { video: s.video_id, rounds: s.rounds || [], cur: 0, score: 0, answered: false, done: false, color: colorOf(c, meta), cls: clsOf(c) };
+  el.innerHTML = `
+    <h1 class="slide-title" style="font-size:clamp(16px,2.4vw,22px);">${s.title}</h1>
+    ${s.subtitle ? `<p class="slide-subtitle">${s.subtitle}</p>` : ''}
+    <div class="ornament-card ${clsOf(c)}" style="max-width:600px;" id="vg-game-${slideId}"></div>`;
+  queueVexRender(() => vgRender(slideId));
   return el;
 }
 
@@ -7709,6 +7766,7 @@ function loadLesson(data) {
     else if (s.type === 'house_intro') el = buildHouseIntro(s, meta, sid);
     else if (s.type === 'spot_errors') el = buildSpotErrors(s, meta, sid);
     else if (s.type === 'accidental_fix') el = buildAccidentalFix(s, meta, sid);
+    else if (s.type === 'video_guess') el = buildVideoGuess(s, meta, sid);
     else if (s.type === 'video_feature')   el = buildVideoFeature(s, meta, sid);
     else return;
     el.id = sid;

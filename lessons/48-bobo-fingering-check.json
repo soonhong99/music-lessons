@@ -1,0 +1,148 @@
+{
+  "meta": {
+    "id": "48-bobo-fingering-check",
+    "title": "보보의 운지 검사",
+    "subject": "음악",
+    "grade": "초등 1학년",
+    "color_a": "#2E5A9E",
+    "color_b": "#C9A017",
+    "color_a_light": "#E3EBF7",
+    "color_b_light": "#FBF3D4",
+    "color_a_dark": "#16305A",
+    "color_b_dark": "#5A4A0A",
+    "color_a_border": "#A8BCE0",
+    "color_b_border": "#E8D27A",
+    "result_message": "길잡이에서 세어서 보보의 틀린 운지를 찾아 고쳐줬어요!"
+  },
+  "slides": [
+    {
+      "type": "guide_find",
+      "title": "몸풀기: 길잡이 자리 맞히기",
+      "subtitle": "빈 오선에서 길잡이 자리를 눌러요",
+      "key": "G",
+      "count": 5,
+      "pool": [
+        "d/4",
+        "a/4",
+        "e/5"
+      ],
+      "tip": "레·라·미는 모두 칸! 레(오선 아래 칸), 라(둘째 칸), 미(넷째 칸)",
+      "color": "a"
+    },
+    {
+      "type": "fingering_check",
+      "title": "보보의 운지 검사",
+      "subtitle": "보보가 적은 짚는 자리 카드를 검사하고, 틀린 카드를 고쳐줘요",
+      "key": "G",
+      "rounds": [
+        {
+          "label": "길잡이 진하게",
+          "guides": "all",
+          "measures": [
+            [
+              "b/4",
+              "c/5",
+              "e/4"
+            ],
+            [
+              "d/5",
+              "g/4",
+              "a/4"
+            ]
+          ],
+          "bobo": [
+            "A1",
+            "D2",
+            "D1",
+            "A3",
+            "A3",
+            "A0"
+          ]
+        },
+        {
+          "label": "길잡이 흐리게",
+          "guides": "faint",
+          "measures": [
+            [
+              "c/5",
+              "e/5",
+              "f/5"
+            ],
+            [
+              "g/4",
+              "f/4",
+              "e/4"
+            ]
+          ],
+          "bobo": [
+            "A3",
+            "E0",
+            "E1",
+            "D3",
+            "D3",
+            "D1"
+          ]
+        },
+        {
+          "label": "길잡이 없이 · 쪽지와 약속",
+          "guides": "none",
+          "measures": [
+            [
+              "d/5",
+              "d/5:#",
+              "e/5"
+            ],
+            [
+              "d/5",
+              "f/4",
+              "g/4"
+            ]
+          ],
+          "bobo": [
+            "A3",
+            "A3",
+            "A4",
+            "A3+",
+            "D2",
+            "D3"
+          ]
+        }
+      ],
+      "color": "a"
+    },
+    {
+      "type": "quiz",
+      "title": "마무리 퀴즈!",
+      "subtitle": "길잡이에서 세어볼까요?",
+      "questions": [
+        {
+          "q": "라(A현 길잡이)에서 두 칸 올라간 '도'는 어디서 짚을까요?",
+          "options": [
+            "A현 2번",
+            "A현 3번",
+            "D현 2번"
+          ],
+          "answer": 0
+        },
+        {
+          "q": "레(D현 길잡이)에서 세 칸 올라간 '솔'은 어디서 짚을까요?",
+          "options": [
+            "D현 3번",
+            "A현 3번",
+            "D현 2번"
+          ],
+          "answer": 0
+        },
+        {
+          "q": "레# 쪽지가 붙은 방의 레#은 어떻게 짚을까요?",
+          "options": [
+            "A현 3번을 4번 자리에 붙여요",
+            "A현 3번 그대로",
+            "A현 2번"
+          ],
+          "answer": 0
+        }
+      ]
+    }
+  ]
+}

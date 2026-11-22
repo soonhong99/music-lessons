@@ -3551,6 +3551,7 @@ function stRender(sid) {
   const st = ST_STATE[sid];
   if (st && st.scoreTap) { scRender(sid); return; }
   if (st && st.fade) { gfRender(sid); return; }
+  if (st && st.fixCheck) { fkRender(sid); return; }
   const box = document.getElementById(`st-game-${sid}`);
   if (!st || !box) return;
   if (st.mode === 'explore') {
@@ -3676,6 +3677,7 @@ function stTap(sid, key) {
   if (!st) return;
   if (st.scoreTap) { scTap(sid, key); return; }
   if (st.fade) { gfTap(sid, key); return; }
+  if (st.fixCheck) { fkTap(sid, key); return; }
   if (st.mode === 'explore') {
     const p = st.spots.find(x => spotKey(x) === key);
     playFingerNote(p.freq);
@@ -4698,17 +4700,35 @@ function renderClickStaff(id, measures, key, time, o) {
   if (!container) return;
   container.innerHTML = '';
   const { Renderer, Stave, StaveNote, Voice, Formatter, Accidental } = Vex.Flow;
-  const perNote = 64;
+  const perNote = o.perNote || 64;
   const head = 66 + Object.keys(WT_KEY_ACC[key] || {}).length * 11 + (time ? 24 : 0);
   const widths = measures.map((m, i) => (i === 0 ? head : 16) + m.length * perNote + 8);
-  const W = widths.reduce((a, b) => a + b, 0) + 10, H = 150;
+  const W = widths.reduce((a, b) => a + b, 0) + 10 + (o.guides ? 52 : 0), H = 160;
   const renderer = new Renderer(container, Renderer.Backends.SVG);
   renderer.resize(W, H);
   const ctx = renderer.getContext();
   let x = 5, idx = 0;
   const hits = [];
+  // open-string rails (opacity per string) drawn first, behind the notes
+  if (o.guides && o.guides.length) {
+    const ref = new Stave(5, 50, 100);
+    const x0 = 5 + head - 30, x1 = 5 + widths.reduce((a, b) => a + b, 0);
+    o.guides.forEach(gd => {
+      if (!(gd.opacity > 0)) return;
+      const g = new StaveNote({ keys: [GUIDE_POS[gd.s]], duration: 'w' });
+      g.setStave(ref);
+      const y = g.getYs()[0];
+      ctx.save();
+      ctx.setFillStyle(GUIDE_COLOR[gd.s] + (gd.opacity >= 1 ? '40' : '1C'));
+      ctx.fillRect(x0, y - 4, x1 - x0, 8);
+      ctx.setFillStyle(GUIDE_COLOR[gd.s]);
+      ctx.setFont('Jua, sans-serif', 11, 'normal');
+      ctx.fillText(`${gd.s}현 ${GUIDE_NAME[gd.s]}`, x1 + 4, y + 4);
+      ctx.restore();
+    });
+  }
   measures.forEach((m, mi) => {
-    const stave = new Stave(x, 40, widths[mi]);
+    const stave = new Stave(x, 50, widths[mi]);
     if (mi === 0) { stave.addClef('treble'); if (key !== 'C') stave.addKeySignature(key); if (time) stave.addTimeSignature(time); }
     x += widths[mi];
     ctx.setFillStyle('#3A3833'); ctx.setStrokeStyle('#3A3833');
@@ -4728,10 +4748,15 @@ function renderClickStaff(id, measures, key, time, o) {
     notes.forEach(vn => {
       const i = vn._i, nx = vn.getAbsoluteX() + 6, ny = vn.getYs()[0];
       if (o.labels && o.labels[i]) {
-        ctx.save(); ctx.setFont('Jua, sans-serif', 12.5, 'normal');
-        ctx.setFillStyle((o.labelColors && o.labelColors[i]) || '#6A675F');
-        ctx.fillText(o.labels[i], nx - (o.labels[i].length > 1 ? 9 : 5), stave.getYForLine(0) - 22);
-        ctx.restore();
+        // a label may have two lines ("A현 3번\n4번에 붙여"); centred on the note
+        const lines = o.labels[i].split('\n');
+        const baseY = stave.getYForLine(0) - (lines.length > 1 ? 36 : 24);
+        lines.forEach((ln, k) => {
+          ctx.save(); ctx.setFont('Jua, sans-serif', k ? 10 : 12.5, 'normal');
+          ctx.setFillStyle((o.labelColors && o.labelColors[i]) || '#6A675F');
+          ctx.fillText(ln, nx - ln.length * (k ? 2.6 : 3.4), baseY + k * 13);
+          ctx.restore();
+        });
       }
       if (o.rings && o.rings[i]) {
         ctx.save(); ctx.setStrokeStyle(o.rings[i]); ctx.setLineWidth(2.2);
@@ -4966,6 +4991,142 @@ function buildVideoGuess(s, meta, slideId) {
     ${s.subtitle ? `<p class="slide-subtitle">${s.subtitle}</p>` : ''}
     <div class="ornament-card ${clsOf(c)}" style="max-width:600px;" id="vg-game-${slideId}"></div>`;
   queueVexRender(() => vgRender(slideId));
+  return el;
+}
+
+/* ── FINGERING CHECK ── "보보의 운지 검사": 보보 wrote a fingering card
+   above each note ("A1", "D3", "A3+" = 3rd finger pushed up for 레#).
+   The child checks them against the open-string rails, taps a wrong card,
+   then fixes it by pressing the right spot on the string board. Rails per
+   round: 'all' (strong), 'faint', 'none' (can be called back by a hint). */
+function fkCardText(key) {
+  const s = key[0], f = parseInt(key.slice(1), 10);
+  const base = `${s}현 ${f === 0 ? '개방' : f + '번'}`;
+  if (key.endsWith('+')) return `${base}\n4번에 붙여`;
+  if (key.endsWith('-')) return `${base}\n1번에 붙여`;
+  return base;
+}
+function fkCount(st, n) {
+  const fp = firstPosition(n.freq);
+  const open = GUIDE_NAME[fp.s];
+  if (/#/.test(n.label) && n.letter === 'd') return `레#은 ${fp.s}현 3번을 4번(미) 자리에 바짝 붙여요!`;
+  if (fp.f === 0) return `${open}(${fp.s}현 길잡이)에 딱 있어요 → ${fp.s}현 개방현!`;
+  return `${open}(${fp.s}현 길잡이)에서 ${fp.f}칸 → ${fp.s}현 ${fp.f}번!`;
+}
+function fkLoad(sid) {
+  const st = ST_STATE[sid];
+  const r = st.rounds[st.cur];
+  st.notes = wtAnalyze(r.measures, st.key);
+  st.spots = stSpots(st.key);
+  st.notes.forEach(n => {
+    const midi = Math.round(69 + 12 * Math.log2(n.freq / 440));
+    if (st.spots.some(p => p.midi === midi)) return;
+    const fp = firstPosition(n.freq);
+    st.spots.push({ s: fp.s, f: fp.f, semi: fp.semi, midi, label: n.label, freq: n.freq, pos: n.pos, key: `${fp.s}${fp.f}+` });
+  });
+  st.valid = st.notes.map(n => {
+    const midi = Math.round(69 + 12 * Math.log2(n.freq / 440));
+    return st.spots.filter(p => p.midi === midi).map(spotKey);
+  });
+  st.errors = r.bobo.map((k, i) => st.valid[i].includes(k) ? -1 : i).filter(i => i >= 0);
+  Object.assign(st, { found: [], fixed: {}, fixing: null, lastMiss: null, guideCalled: false, msg: '',
+    q: null, answers: [], wrong: null, solved: false, hint: 0, path: null, lit: null });
+  fkRender(sid);
+}
+function fkStart(sid) { const st = ST_STATE[sid]; Object.assign(st, { cur: 0, misses: 0, boardMiss: 0, hintsUsed: 0, done: false }); fkLoad(sid); }
+function fkRender(sid) {
+  const st = ST_STATE[sid];
+  const box = document.getElementById(`st-game-${sid}`);
+  if (!st || !box) return;
+  if (st.done) {
+    box.innerHTML = `<div style="text-align:center;font-family:'Jua',sans-serif;">
+        <div style="font-size:20px;margin:12px 0 4px;">보보의 카드를 모두 고쳐줬어요!</div>
+        <div style="font-size:14.5px;">헛짚은 카드 ${st.misses}번 · 고치다 틀린 자리 ${st.boardMiss}번 · 힌트 ${st.hintsUsed}번</div></div>
+      <div style="text-align:center;margin-top:12px;"><button class="btn btn-${st.cls}" style="font-size:13px;padding:7px 16px;" onclick="fkStart('${sid}')">다시 하기</button></div>`;
+    return;
+  }
+  const r = st.rounds[st.cur];
+  const left = st.errors.filter(i => !(i in st.fixed)).length;
+  const mode = r.guides || 'all';
+  const op = mode === 'all' || st.guideCalled ? 1 : mode === 'faint' ? 0.5 : 0;
+  const labels = r.bobo.map((k, i) => fkCardText(i in st.fixed ? st.fixed[i] : k));
+  const labelColors = r.bobo.map((_, i) => i in st.fixed ? '#2E8A5A' : st.fixing === i ? '#B0413E' : '#6A675F');
+  const rings = r.bobo.map((_, i) => i in st.fixed ? '#2E8A5A' : st.fixing === i ? '#B0413E' : st.lastMiss === i ? '#B8B5AE' : null);
+  if (st.fixing != null) {
+    const n = st.notes[st.fixing];
+    st.q = { label: n.label, freq: n.freq, midi: Math.round(69 + 12 * Math.log2(n.freq / 440)) };
+  }
+  const hintBtns = left && st.fixing == null ? `
+    <button class="btn" style="font-size:12px;padding:5px 12px;" onclick="fkHint('${sid}')">힌트: 어느 방?</button>
+    ${mode !== 'all' && !st.guideCalled ? `<button class="btn" style="font-size:12px;padding:5px 12px;" onclick="ST_STATE['${sid}'].guideCalled=true;ST_STATE['${sid}'].hintsUsed++;fkRender('${sid}')">길잡이 불러오기</button>` : ''}` : '';
+  box.innerHTML = `
+    <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text-mid);">
+      <span>${st.cur + 1} / ${st.rounds.length}판 · ${r.label || ''}</span><span>남은 실수 ${left}개</span></div>
+    <div id="fk-staff-${sid}"></div>
+    ${stBoardSvg(sid)}
+    <div class="ornament-korean" style="text-align:center;margin-top:3px;min-height:22px;font-size:13px;">${st.msg || '보보가 음표 위에 짚을 자리를 적었어요. 길잡이에서 세어보고 <b>틀린 카드</b>를 눌러요!'}</div>
+    <div style="display:flex;justify-content:center;flex-wrap:wrap;gap:6px;margin-top:4px;">
+      ${left === 0 ? `<button class="btn btn-${st.cls}" style="font-size:13px;padding:7px 16px;" onclick="fkNext('${sid}')">${st.cur >= st.rounds.length - 1 ? '결과 보기' : '다음 판 ▶'}</button>` : hintBtns}
+    </div>`;
+  renderClickStaff(`fk-staff-${sid}`, r.measures, st.key, null, {
+    labels, labelColors, rings, onTap: st.fixing == null && left ? 'fkCard' : null, sid, perNote: 74, scale: 0.92,
+    guides: ['E', 'A', 'D'].map(s => ({ s, opacity: op }))
+  });
+}
+function fkCard(sid, i) {
+  const st = ST_STATE[sid];
+  if (st.fixing != null || i in st.fixed) return;
+  if (st.errors.includes(i)) {
+    st.fixing = i; st.lastMiss = null;
+    st.msg = `<b style="color:#B0413E;">찾았어요!</b> 보보가 '${fkCardText(st.rounds[st.cur].bobo[i]).replace('\n', ' ')}'라고 잘못 적었어요. 아래 현 그림에서 <b>맞는 자리</b>를 눌러 고쳐줘요!`;
+  } else {
+    st.misses++; st.lastMiss = i;
+    st.msg = `이 카드는 맞게 적었어요. <b>${st.notes[i].label}</b> — ${fkCount(st, st.notes[i])} 다른 카드를 찾아봐요.`;
+  }
+  fkRender(sid);
+}
+function fkTap(sid, key) {
+  const st = ST_STATE[sid];
+  if (st.fixing == null) return;
+  const i = st.fixing, n = st.notes[i];
+  if (st.valid[i].includes(key)) {
+    st.fixed[i] = key; st.fixing = null; st.q = null;
+    playFingerNote(n.freq);
+    st.msg = `<b style="color:#2E8A5A;">고쳤어요!</b> ${n.label} — ${fkCount(st, n)}${n.ruleful ? `<br>${n.why}` : ''}`;
+  } else {
+    st.boardMiss++;
+    const p = st.spots.find(x => spotKey(x) === key);
+    st.msg = `그 자리는 <b>${p ? p.label : ''}</b>${p && hasBatchim(p.label) ? '이에요' : '예요'}. 이 음은 <b>${n.label}</b>! 길잡이에서 다시 세어봐요.`;
+  }
+  fkRender(sid);
+}
+function fkHint(sid) {
+  const st = ST_STATE[sid];
+  const i = st.errors.find(k => !(k in st.fixed));
+  if (i == null) return;
+  st.hintsUsed++;
+  st.msg = `힌트: 틀린 카드는 <b>${st.notes[i].m + 1}번 방</b>(${st.notes[i].m + 1}번째 마디)에 있어요.`;
+  fkRender(sid);
+}
+function fkNext(sid) {
+  const st = ST_STATE[sid];
+  if (st.cur >= st.rounds.length - 1) { st.done = true; fkRender(sid); return; }
+  st.cur++; fkLoad(sid);
+}
+function buildFingeringCheck(s, meta, slideId) {
+  const c = s.color || 'a';
+  const el = document.createElement('div');
+  el.className = 'slide';
+  ST_STATE[slideId] = {
+    fixCheck: true, mode: 'challenge', anchor: 'open', guides: false, strings: s.strings || ['E', 'A', 'D'],
+    key: s.key || 'G', rounds: s.rounds || [], spots: stSpots(s.key || 'G'), level: 0,
+    color: colorOf(c, meta), accent: '#C26A12', cls: clsOf(c)
+  };
+  el.innerHTML = `
+    <h1 class="slide-title" style="font-size:clamp(16px,2.4vw,22px);">${s.title}</h1>
+    ${s.subtitle ? `<p class="slide-subtitle">${s.subtitle}</p>` : ''}
+    <div class="ornament-card ${clsOf(c)}" style="max-width:620px;" id="st-game-${slideId}"></div>`;
+  queueVexRender(() => fkStart(slideId));
   return el;
 }
 
@@ -7767,6 +7928,7 @@ function loadLesson(data) {
     else if (s.type === 'spot_errors') el = buildSpotErrors(s, meta, sid);
     else if (s.type === 'accidental_fix') el = buildAccidentalFix(s, meta, sid);
     else if (s.type === 'video_guess') el = buildVideoGuess(s, meta, sid);
+    else if (s.type === 'fingering_check') el = buildFingeringCheck(s, meta, sid);
     else if (s.type === 'video_feature')   el = buildVideoFeature(s, meta, sid);
     else return;
     el.id = sid;

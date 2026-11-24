@@ -3552,6 +3552,7 @@ function stRender(sid) {
   if (st && st.scoreTap) { scRender(sid); return; }
   if (st && st.fade) { gfRender(sid); return; }
   if (st && st.fixCheck) { fkRender(sid); return; }
+  if (st && st.cardWrite) { cwRender(sid); return; }
   const box = document.getElementById(`st-game-${sid}`);
   if (!st || !box) return;
   if (st.mode === 'explore') {
@@ -3678,6 +3679,7 @@ function stTap(sid, key) {
   if (st.scoreTap) { scTap(sid, key); return; }
   if (st.fade) { gfTap(sid, key); return; }
   if (st.fixCheck) { fkTap(sid, key); return; }
+  if (st.cardWrite) { cwTap(sid, key); return; }
   if (st.mode === 'explore') {
     const p = st.spots.find(x => spotKey(x) === key);
     playFingerNote(p.freq);
@@ -5127,6 +5129,212 @@ function buildFingeringCheck(s, meta, slideId) {
     ${s.subtitle ? `<p class="slide-subtitle">${s.subtitle}</p>` : ''}
     <div class="ornament-card ${clsOf(c)}" style="max-width:620px;" id="st-game-${slideId}"></div>`;
   queueVexRender(() => fkStart(slideId));
+  return el;
+}
+
+/* ── MEMORY MATCH ── "짝꿍 카드 뒤집기": face-down cards, half showing a
+   note on a staff, half showing where it's pressed. Flip two; a note and
+   its place are a pair. Each game draws a fresh set from the pool (the
+   `always` pairs are always included). */
+const MM_STATE = {};
+function mmDeal(sid) {
+  const st = MM_STATE[sid];
+  const pool = st.pool.filter(p => !st.always.includes(p));
+  const picks = st.always.slice();
+  while (picks.length < st.pairs && pool.length) picks.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
+  const cards = [];
+  picks.forEach((pos, k) => {
+    const n = wtAnalyze([[pos]], st.key)[0];
+    const fp = firstPosition(n.freq);
+    const key = /#/.test(n.label) && n.letter === 'd' ? `${fp.s}${fp.f}+` : `${fp.s}${fp.f}`;
+    cards.push({ pair: k, kind: 'note', pos, label: n.label, freq: n.freq });
+    cards.push({ pair: k, kind: 'place', text: fkCardText(key), label: n.label, freq: n.freq });
+  });
+  for (let i = cards.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [cards[i], cards[j]] = [cards[j], cards[i]]; }
+  Object.assign(st, { cards, open: [], matched: [], moves: 0, busy: false, msg: '' });
+  mmRender(sid);
+}
+function mmRender(sid) {
+  const st = MM_STATE[sid];
+  const box = document.getElementById(`mm-game-${sid}`);
+  if (!st || !box) return;
+  const done = st.matched.length === st.cards.length;
+  box.innerHTML = `
+    <div style="display:flex;justify-content:space-between;font-size:12.5px;color:var(--text-mid);margin-bottom:6px;">
+      <span>찾은 짝 ${st.matched.length / 2} / ${st.cards.length / 2}</span><span>뒤집은 횟수 ${st.moves}</span></div>
+    <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;">
+      ${st.cards.map((c, i) => {
+        const up = st.open.includes(i) || st.matched.includes(i);
+        const got = st.matched.includes(i);
+        return `<button onclick="mmFlip('${sid}',${i})" style="height:86px;border-radius:12px;cursor:pointer;padding:3px;min-width:0;
+            border:2px solid ${got ? '#2E8A5A' : up ? st.color : 'transparent'};
+            background:${up ? (got ? '#EAF6EE' : '#FFF') : st.color};">
+          ${up ? (c.kind === 'note' ? `<div id="mm-c-${sid}-${i}"></div>`
+                : `<div style="font-family:'Jua',sans-serif;font-size:14px;color:var(--text);line-height:1.3;white-space:pre-line;">${c.text}</div>`)
+              : `<div style="font-family:'Jua',sans-serif;font-size:26px;color:#FFF;">?</div>`}
+        </button>`;
+      }).join('')}
+    </div>
+    <div class="ornament-korean" style="text-align:center;margin-top:8px;min-height:22px;font-size:13px;">${done
+      ? `<b style="color:#2E8A5A;">짝을 모두 찾았어요!</b> 뒤집은 횟수 ${st.moves}번`
+      : st.msg || '두 장씩 뒤집어서 <b>음표</b>와 <b>짚는 자리</b> 짝을 찾아요!'}</div>
+    ${done ? `<div style="text-align:center;margin-top:6px;"><button class="btn btn-${st.cls}" style="font-size:13px;padding:7px 16px;" onclick="mmDeal('${sid}')">새 카드로 한 번 더!</button></div>` : ''}`;
+  st.cards.forEach((c, i) => {
+    if (c.kind === 'note' && (st.open.includes(i) || st.matched.includes(i))) {
+      renderSingleNote(`mm-c-${sid}-${i}`, c.pos, st.key, '#1F1E1B', { width: 120, maxWidth: 96 });
+    }
+  });
+}
+function mmFlip(sid, i) {
+  const st = MM_STATE[sid];
+  if (st.busy || st.open.includes(i) || st.matched.includes(i)) return;
+  st.open.push(i);
+  if (st.open.length === 2) {
+    st.moves++;
+    const [a, b] = st.open.map(k => st.cards[k]);
+    if (a.pair === b.pair && a.kind !== b.kind) {
+      st.matched.push(...st.open); st.open = [];
+      playFingerNote(a.freq);
+      st.msg = `<b style="color:#2E8A5A;">짝이에요!</b> ${a.label} — ${(a.kind === 'place' ? a.text : b.text).replace('\n', ' ')}`;
+    } else {
+      st.busy = true;
+      st.msg = '짝이 아니에요. 어디에 있었는지 기억해요!';
+      setTimeout(() => { st.open = []; st.busy = false; mmRender(sid); }, 1100);
+    }
+  }
+  mmRender(sid);
+}
+function buildMemoryMatch(s, meta, slideId) {
+  const c = s.color || 'a';
+  const el = document.createElement('div');
+  el.className = 'slide';
+  MM_STATE[slideId] = { key: s.key || 'G', pool: s.pool || [], always: s.always || [], pairs: s.pairs || 4, color: colorOf(c, meta), cls: clsOf(c) };
+  el.innerHTML = `
+    <h1 class="slide-title" style="font-size:clamp(16px,2.4vw,22px);">${s.title}</h1>
+    ${s.subtitle ? `<p class="slide-subtitle">${s.subtitle}</p>` : ''}
+    <div class="ornament-card ${clsOf(c)}" style="max-width:520px;" id="mm-game-${slideId}"></div>`;
+  queueVexRender(() => mmDeal(slideId));
+  return el;
+}
+
+/* ── CARD WRITE ── "보보에게 카드 써주기": the child fills a fingering card
+   for every note (tap the note, then the spot), then 보보 plays the cards.
+   Playback stops at the first card that gives the wrong pitch — heard,
+   not just marked — and that note is selected for fixing. Alternate spots
+   for the same pitch (A현 개방 = D현 4번) play the same sound, so they pass. */
+function cwLoad(sid) {
+  const st = ST_STATE[sid];
+  const r = st.rounds[st.cur];
+  st.notes = wtAnalyze(r.measures, st.key);
+  st.spots = stSpots(st.key);
+  st.notes.forEach(n => {
+    const midi = Math.round(69 + 12 * Math.log2(n.freq / 440));
+    if (st.spots.some(p => p.midi === midi)) return;
+    const fp = firstPosition(n.freq);
+    st.spots.push({ s: fp.s, f: fp.f, semi: fp.semi, midi, label: n.label, freq: n.freq, pos: n.pos, key: `${fp.s}${fp.f}+` });
+  });
+  Object.assign(st, { cards: st.notes.map(() => null), sel: 0, wrongIdx: null, playing: false, roundDone: false, msg: '',
+    q: null, answers: [], wrong: null, solved: false, hint: 0, path: null, lit: null });
+  cwRender(sid);
+}
+function cwStart(sid) { const st = ST_STATE[sid]; Object.assign(st, { cur: 0, tries: 0, done: false }); cwLoad(sid); }
+function cwRender(sid) {
+  const st = ST_STATE[sid];
+  const box = document.getElementById(`st-game-${sid}`);
+  if (!st || !box) return;
+  if (st.done) {
+    box.innerHTML = `<div style="text-align:center;font-family:'Jua',sans-serif;">
+        <div style="font-size:20px;margin:12px 0 4px;">보보가 모든 줄을 끝까지 연주했어요!</div>
+        <div style="font-size:14.5px;">보보가 멈춘 횟수 ${st.tries}번</div></div>
+      <div style="text-align:center;margin-top:12px;"><button class="btn btn-${st.cls}" style="font-size:13px;padding:7px 16px;" onclick="cwStart('${sid}')">다시 하기</button></div>`;
+    return;
+  }
+  const r = st.rounds[st.cur];
+  const filled = st.cards.every(Boolean);
+  st.lit = st.sel != null && st.cards[st.sel] ? [st.cards[st.sel]] : null;
+  const labels = st.cards.map(k => k ? fkCardText(k) : '?');
+  const labelColors = st.cards.map((k, i) => i === st.wrongIdx ? '#B0413E' : i === st.sel ? st.color : k ? '#3A3833' : '#B8B5AE');
+  const rings = st.cards.map((_, i) => i === st.wrongIdx ? '#B0413E' : i === st.sel ? st.color : (st.playIdx === i ? '#2E8A5A' : null));
+  box.innerHTML = `
+    <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text-mid);">
+      <span>${st.cur + 1} / ${st.rounds.length}줄 · ${r.label || ''}</span><span>보보가 멈춘 횟수 ${st.tries}</span></div>
+    <div id="cw-staff-${sid}"></div>
+    ${stBoardSvg(sid)}
+    <div class="ornament-korean" style="text-align:center;margin-top:3px;min-height:22px;font-size:13px;">${st.msg || '파란 음표의 짚는 자리를 아래 현 그림에서 골라 카드를 채워요. 다른 음표를 눌러서 고를 수도 있어요.'}</div>
+    <div style="display:flex;justify-content:center;flex-wrap:wrap;gap:6px;margin-top:4px;">
+      ${st.roundDone
+        ? `<button class="btn btn-${st.cls}" style="font-size:13px;padding:7px 16px;" onclick="cwNext('${sid}')">${st.cur >= st.rounds.length - 1 ? '결과 보기' : '다음 줄 ▶'}</button>`
+        : `<button class="btn btn-${st.cls}" ${filled && !st.playing ? '' : 'disabled'} style="font-size:13px;padding:7px 16px;" onclick="cwPlay('${sid}')">▶ 보보야, 연주해봐!</button>
+           <button class="btn" style="font-size:12px;padding:5px 12px;" onclick="ST_STATE['${sid}'].showGuides=!ST_STATE['${sid}'].showGuides;cwRender('${sid}')">길잡이 ${st.showGuides ? '끄기' : '켜기'}</button>`}
+    </div>`;
+  renderClickStaff(`cw-staff-${sid}`, r.measures, st.key, null, {
+    labels, labelColors, rings, onTap: st.playing || st.roundDone ? null : 'cwSelect', sid, perNote: 74, scale: 0.92,
+    guides: st.showGuides ? ['E', 'A', 'D'].map(s => ({ s, opacity: 1 })) : null
+  });
+}
+function cwSelect(sid, i) { const st = ST_STATE[sid]; if (st.playing) return; st.sel = i; st.msg = ''; cwRender(sid); }
+function cwTap(sid, key) {
+  const st = ST_STATE[sid];
+  if (st.playing || st.roundDone || st.sel == null) return;
+  const p = st.spots.find(x => spotKey(x) === key);
+  st.cards[st.sel] = key;
+  if (p) playFingerNote(p.freq);
+  if (st.wrongIdx === st.sel) st.wrongIdx = null;
+  const next = st.cards.findIndex((c, k) => !c && k > st.sel);
+  const any = st.cards.findIndex(c => !c);
+  st.sel = next >= 0 ? next : any >= 0 ? any : null;
+  st.msg = st.sel == null ? '카드를 다 썼어요! <b>보보야, 연주해봐!</b>를 눌러요.' : '';
+  cwRender(sid);
+}
+function cwPlay(sid) {
+  const st = ST_STATE[sid];
+  if (st.playing || !st.cards.every(Boolean)) return;
+  st.playing = true; st.wrongIdx = null; st.sel = null; st.msg = '보보가 카드대로 연주하고 있어요…';
+  let i = 0;
+  const step = () => {
+    if (i >= st.notes.length) {
+      st.playing = false; st.playIdx = null; st.roundDone = true;
+      st.msg = '<b style="color:#2E8A5A;">보보가 끝까지 연주했어요!</b> 카드를 모두 알맞게 써줬어요.';
+      cwRender(sid);
+      return;
+    }
+    const n = st.notes[i];
+    const p = st.spots.find(x => spotKey(x) === st.cards[i]);
+    playFingerNote(p.freq);
+    st.playIdx = i;
+    const right = Math.round(69 + 12 * Math.log2(p.freq / 440)) === Math.round(69 + 12 * Math.log2(n.freq / 440));
+    if (!right) {
+      st.playing = false; st.playIdx = null; st.wrongIdx = i; st.sel = i; st.tries++;
+      st.msg = `<b style="color:#B0413E;">어? ${i + 1}번째 음 소리가 이상해!</b> 악보는 <b>${n.label}</b>인데, 카드대로 짚으면 <b>${p.label}</b> 소리가 나요. 카드를 고쳐줘요!`
+        + (n.ruleful ? `<br>${n.why}` : '');
+      cwRender(sid);
+      return;
+    }
+    cwRender(sid);
+    i++;
+    setTimeout(step, 600);
+  };
+  step();
+}
+function cwNext(sid) {
+  const st = ST_STATE[sid];
+  if (st.cur >= st.rounds.length - 1) { st.done = true; cwRender(sid); return; }
+  st.cur++; cwLoad(sid);
+}
+function buildCardWrite(s, meta, slideId) {
+  const c = s.color || 'a';
+  const el = document.createElement('div');
+  el.className = 'slide';
+  ST_STATE[slideId] = {
+    cardWrite: true, mode: 'challenge', anchor: 'open', guides: false, strings: s.strings || ['E', 'A', 'D'],
+    key: s.key || 'G', rounds: s.rounds || [], spots: stSpots(s.key || 'G'), level: 0, showGuides: true,
+    color: colorOf(c, meta), accent: '#C26A12', cls: clsOf(c)
+  };
+  el.innerHTML = `
+    <h1 class="slide-title" style="font-size:clamp(16px,2.4vw,22px);">${s.title}</h1>
+    ${s.subtitle ? `<p class="slide-subtitle">${s.subtitle}</p>` : ''}
+    <div class="ornament-card ${clsOf(c)}" style="max-width:620px;" id="st-game-${slideId}"></div>`;
+  queueVexRender(() => cwStart(slideId));
   return el;
 }
 
@@ -7929,6 +8137,8 @@ function loadLesson(data) {
     else if (s.type === 'accidental_fix') el = buildAccidentalFix(s, meta, sid);
     else if (s.type === 'video_guess') el = buildVideoGuess(s, meta, sid);
     else if (s.type === 'fingering_check') el = buildFingeringCheck(s, meta, sid);
+    else if (s.type === 'memory_match') el = buildMemoryMatch(s, meta, sid);
+    else if (s.type === 'card_write') el = buildCardWrite(s, meta, sid);
     else if (s.type === 'video_feature')   el = buildVideoFeature(s, meta, sid);
     else return;
     el.id = sid;
